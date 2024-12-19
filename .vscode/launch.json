@@ -5,6 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Run: fletdemo",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "src\\main.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Run: hello",
             "type": "debugpy",
             "request": "launch",
