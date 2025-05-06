@@ -1,0 +1,817 @@
+###
+# File:   src\logic\ui\project\handlers\meeting.py
+# Date:   2025-05-06 / 06:52
+# Author: alexrjs
+###
+
+
+# imports
+from flet import(
+    ControlEvent, Colors, Container, Column, CrossAxisAlignment, Page, IconButton, TextField, MainAxisAlignment, TextButton, ElevatedButton, Row,
+    ListView, ListTile, Text, Icons, AlertDialog, VerticalDivider, border, Badge, alignment
+)
+from db import registry
+from db.messages import getError
+from logic.ui import ContentAction, ITEM_TYPE_MEETINGS, ITEM_TYPE_MODULES, ITEM_TYPE_TEMPLATES, ITEM_TYPE_TEXT
+#from logic.ui.project import selectItem
+from logic.ui.project.utils import filter_ids_by_type, get_available_entries_not_in_tops, find_index_by_id
+from logic.ui.window import updateWindowTitle, updateWindowState
+
+
+# constants
+
+
+# variables
+
+
+# functions/classes
+# Function to create the module view (moved from __init__.py)
+def create_view(_data: dict) -> None:
+    """Creates the view for meetings."""
+
+    assert _data, getError("A000")
+    _type = _data["type"]
+    assert _type, getError("A000")
+    _id = _data["id"]
+    assert _id, getError("A000")
+    _tops = _data["tops"]
+
+    _list = ListView(
+        expand=True, 
+        spacing=2, 
+        padding=2, 
+        data=f"{_type}:{_id}",
+        auto_scroll=True
+    )
+    _item = ListTile(
+        title=Text("Agenda:"),
+        disabled=False,
+    )
+    _list.controls.append(_item)
+    for _i, _top in enumerate(_tops):
+        _topType = _top["type"]
+        assert _topType, getError("A000")
+        _topId = _top["id"]
+        assert _topId, getError("A000")
+        match _topType:
+            case "text":
+                _title = TextField(
+                    value=f"▶ {_top['value']}",
+                    color=Colors.WHITE,
+                    read_only=True,
+                    max_lines=50,
+                    min_lines=1,
+                    max_length=500,
+                    border_radius=5,
+                    border_width=1,
+                    border_color=Colors.GREY_500,
+                    label="Custom Text",
+                    key=f"{_topType}:{_topId}",
+                    data=_top
+                )
+
+            case "templates":
+                _template = [_e for _e in registry.project.data[ITEM_TYPE_TEMPLATES] if _e["id"] == _topId]
+                assert _template, getError("A000")
+                _template = _template[0]
+                assert _template, getError("A000")
+
+                _value = ""
+                for _moduleId in _template[ITEM_TYPE_MODULES]:
+                    _module = [_e for _e in registry.project.data["modules"] if _e["id"] == str(_moduleId)]
+                    assert _module, getError("A000")
+                    _module = _module[0]
+                    assert _module, getError("A000")
+                    _value += f"▶ {_module['headline']} (M{int(_moduleId):02d})\n"
+
+                _title = TextField(
+                    value=_value.strip(),
+                    color=Colors.WHITE,
+                    read_only=True,
+                    max_lines=50,
+                    min_lines=1,
+                    max_length=500,
+                    border_radius=5,
+                    border_width=1,
+                    border_color=Colors.GREY_500,
+                    label=f"Template:{int(_topId):02d}",
+                    key=f"{_topType}:{_topId}",
+                    data=_top
+                )
+                
+            case "modules":
+                _module = [_e for _e in registry.project.data[ITEM_TYPE_MODULES] if _e["id"] == _topId]
+                assert _module, getError("A000")
+                _module = _module[0]
+                assert _module, getError("A000")
+                _value = f'▶ {_module["headline"]}'
+
+                _title = TextField(
+                    value=_value,
+                    color=Colors.WHITE,
+                    read_only=True,
+                    max_lines=50,
+                    min_lines=1,
+                    max_length=500,
+                    border_radius=5,
+                    border_width=1,
+                    border_color=Colors.GREY_500,
+                    label=f"Module:{int(_topId):02d}",
+                    key=f"{_topType}:{_topId}",
+                    data=_top
+                )
+                
+            case _:
+                print(f"Unknown top type {_topType}")
+                continue
+    
+        _item: ListTile = ListTile(
+            title=_title,
+            key=f"{_type}:{_id}",
+            disabled=False,
+            data=_i # store the module id here for later access
+        )
+        _list.controls.append(_item)
+
+    _renderToPreview = TextButton(
+        text="Render & Preview",
+        autofocus=True,
+        data=_list,
+        key=ITEM_TYPE_MEETINGS,
+        disabled=len(_tops) <= 0,
+        on_click=lambda e: registry.subjects["contentActions"].notify(e, ContentAction.RenderToPreview)
+    )
+    _renderToFile = TextButton(
+        text="Render & Save",
+        autofocus=True,
+        data=_list,
+        key=ITEM_TYPE_MEETINGS,
+        disabled=len(_tops) <= 0,
+
+        on_click=lambda e: registry.subjects["contentActions"].notify(e, ContentAction.RenderToFile)
+    )
+    if registry.page.web:
+        _renderToFile.visible = False # TODO: Check if still needed
+    
+    _renderToClipboard = TextButton(
+        text="Render & Clipboard",
+        autofocus=True,
+        data=_list,
+        key="meetings",
+        disabled=len(_tops) <= 0,
+        on_click=lambda e: registry.subjects["contentActions"].notify(e, ContentAction.RenderToClipboard)
+    )
+    _edit = TextButton(
+        text="Edit",
+        autofocus=True,
+        data=_list,
+        key=ITEM_TYPE_MEETINGS,
+        on_click=lambda e: registry.subjects["contentActions"].notify(e, ContentAction.Edit)
+    )
+    _row = Row(
+        controls=[_renderToPreview, _renderToFile, _renderToClipboard, _edit],
+        alignment=MainAxisAlignment.END,
+        vertical_alignment=CrossAxisAlignment.END,
+        bottom=10,
+        right=10,
+        expand=True,
+    )
+
+    registry.ui.detailPanel = _list
+    registry.subjects["contentView"].notify(registry.page, [_list, _row]) 
+
+# Function to switch module view to edit mode (moved from __init__.py)
+def switch_to_edit_mode(_control, _key, _id) -> None:
+    """Switch to edit mode for a meeting and open a dialog for managing tops."""
+
+    _parent = _control.parent
+    assert _parent, getError("A000")
+    _projectData = registry.project.data
+    assert _projectData, getError("A000")
+    _meeting = [_e for _e in _projectData[_key] if _e["id"] == _id]
+    assert _meeting, getError("A000")
+    _meeting = _meeting[0]
+    assert _meeting, getError("A000")
+    _tops_in_meeting = _meeting["tops"].copy()
+    _available_templates = get_available_entries_not_in_tops(_tops_in_meeting, ITEM_TYPE_TEMPLATES)
+    _available_modules = get_available_entries_not_in_tops(_tops_in_meeting, ITEM_TYPE_MODULES)
+
+    def create_icon_row(type, id, is_in, callback):
+        """Creates a row of icons for managing modules."""
+
+        _iconRow = Row(
+            controls=[],
+            alignment=MainAxisAlignment.END,
+            tight=True,
+            spacing=0,
+            run_spacing=0,
+        )
+
+        if is_in:
+            _up = IconButton(
+                Icons.ARROW_CIRCLE_UP,
+                icon_color=Colors.WHITE,
+                key=f"{type}:{id}",
+                on_click=lambda e, mid=id, tid=type: _move_top_up(e, tid, mid),
+            )
+            _down = IconButton(
+                Icons.ARROW_CIRCLE_DOWN,
+                icon_color=Colors.WHITE,
+                key=f"{type}:{id}",
+                on_click=lambda e, mid=id, tid=type: _move_top_down(e, tid, mid),
+            )
+            _delete = IconButton(
+                Icons.REMOVE_CIRCLE,
+                icon_color=Colors.WHITE,
+                key=f"{type}:{id}",
+                on_click=callback,
+                data=id,
+            )
+            _iconRow.controls.extend([_up, _down, _delete])
+        else:
+            _add = IconButton(
+                Icons.ADD_CIRCLE,
+                icon_color=Colors.WHITE,
+                key=f"{type}:{id}",
+                on_click=callback,
+                data=id,
+            )
+            _iconRow.controls.append(_add)
+
+        return _iconRow
+
+    # Helper functions for the dialog
+    def newTile(no_: int, data_: dict, is_in: bool, callback: callable):
+        match data_["type"]:
+            case "templates":
+                _trailing = create_icon_row(
+                    data_["type"],
+                    data_["id"],
+                    is_in,
+                    callback=callback,
+                )
+                _key = f"templates:{data_['id']}"
+                _data_id = data_["id"]
+                _leading = Text("T"+str(data_["id"]))
+                _addition = "None" if data_["modules"] is None else ", ".join(data_["modules"])
+                _subtitle = Text(f'{data_["description"]}\nIncluded Modules {_addition}', max_lines=2)
+                if is_in:
+                    for _moduleId in data_["modules"]:
+                        _index = find_index_by_id(_available_modules, ITEM_TYPE_MODULES, _moduleId)
+                        if _index >= 0:
+                            _available_modules.pop(_index)
+                
+            case "modules":
+                _trailing = create_icon_row(
+                    data_["type"],
+                    data_["id"],
+                    is_in,
+                    callback=callback,
+                )
+                _key = f"modules:{data_['id']}"
+                _data_id = data_["id"]
+                _leading = Text("M" + str(data_["id"]))
+                _subtitle = Text(data_["headline"])
+
+            case "text":
+                _trailing = create_icon_row(
+                    data_["type"],
+                    data_["id"],
+                    is_in,
+                    callback=callback,
+                )
+                _data = data_["value"]
+                _key = f"{ITEM_TYPE_TEXT}:{data_['id']}"
+                _leading = Text("TXT") # Changed from CT for clarity
+                _subtitle = Text(data_["value"][0:30] + "...")
+
+            case _:
+                print(f"Unknown type {data_['type']}")
+                return
+            
+        return ListTile(
+            leading=_leading,
+            title=Text(data_["name"]),
+            subtitle=_subtitle,
+            trailing=_trailing,
+            bgcolor=Colors.GREY_800 if no_ % 2 == 0 else Colors.GREY_900,
+            content_padding=0,
+            dense=True,
+            key=_key,
+            data=_data_id if data_['type'] != ITEM_TYPE_TEXT else _data, # Store ID or value
+            #on_click=lambda e: _select_item(e, _key)
+        )
+
+    def close_dlg(e):
+        e.page.close(_dlg)
+
+    def activate_save_button(activate=True):
+        _saveButton.disabled = not activate
+        if _saveButton.disabled:
+            _saveButton.bgcolor=None
+            _saveButton.color=None
+
+        else:
+            _saveButton.bgcolor=Colors.GREEN
+            _saveButton.color=Colors.WHITE
+
+        _saveButton.update()
+
+    def reColorItems(tops_list):
+        for i, item in enumerate(tops_list.controls):
+            item.bgcolor = Colors.GREY_800 if i % 2 == 0 else Colors.GREY_900
+            item.update()
+
+    def _move_top_up(e, type, id):
+        """ move top one up"""
+        
+        tops_list = e.control.parent.parent.parent
+        if not tops_list or not tops_list.controls:
+            return
+
+        if type == "text":
+            _uid = e.control.parent.parent.uid
+            _index = [_i for _i, _c in enumerate(tops_list.controls) if _c.uid == _uid]
+            assert _index, getError("A000")
+            _index = _index[0]
+            assert _index >= 0, getError("A000")
+            current_index = _index
+            
+        else:
+            current_index = -1
+            for i, item in enumerate(tops_list.controls):
+                _key, _id = item.key.split(":")
+                if _id == id:
+                    current_index = i
+                    _type = _key
+                    break
+
+        if current_index > 0:
+            _element = tops_list.controls.pop(current_index)
+            tops_list.controls.insert(current_index - 1, _element)
+            tops_list.update()
+            reColorItems(tops_list)
+            _element.bgcolor = Colors.DEEP_ORANGE_900
+            _element.update()
+            registry.changed = True
+            registry.project.status = "Changed"
+            updateWindowTitle(e.page, registry.projectName + "*")
+            updateWindowState(e.page, registry.changed)
+            activate_save_button()
+
+    def _move_top_down(e, type, id):
+        
+        tops_list = e.control.parent.parent.parent
+        if not tops_list or not tops_list.controls:
+            return
+        
+        if type == "text":
+            _uid = e.control.parent.parent.uid
+            _index = [_i for _i, _c in enumerate(tops_list.controls) if _c.uid == _uid]
+            assert _index, getError("A000")
+            _index = _index[0]
+            assert _index >= 0, getError("A000")
+            current_index = _index
+            
+        else:
+            current_index = -1
+            for i, item in enumerate(tops_list.controls):
+                _, _id = item.key.split(":")
+                if _id == id:
+                    current_index = i
+                    break
+
+        if -1 <current_index < len(tops_list.controls) - 1:
+            _element = tops_list.controls.pop(current_index)
+            tops_list.controls.insert(current_index + 1, _element)
+            tops_list.update()
+            reColorItems(_tops_list)
+            _element.bgcolor = Colors.DEEP_ORANGE_900
+            _element.update()
+            registry.changed = True
+            registry.project.status = "Changed"
+            updateWindowTitle(e.page, registry.projectName + "*")
+            updateWindowState(e.page, registry.changed)
+            activate_save_button()
+
+    def save_modules(e):
+        e.page.close(_dlg)
+        _tops = [
+            (m.key, m.data)
+            for m in _tops_list.controls
+            if isinstance(m, ListTile)
+            and m.data is not None
+        ]
+        _newTops = []
+        for _topKey, _topData in _tops:
+            _type, _id = _topKey.split(":")
+            assert _type, getError("A000")
+            assert _id, getError("A000")
+            _top = {
+                "type": _type,
+                "id": _id,
+                "name": "",
+                "value": ""
+            }
+            match _type:
+                case "templates":
+                    _template = [_e for _e in _projectData[ITEM_TYPE_TEMPLATES] if _e["id"] == _id]
+                    assert _template, getError("A000")
+                    _template = _template[0]
+                    assert _template, getError("A000")
+                    _top["name"] = _template["name"]
+                    #_top["value"] = _template["content"]
+
+                case "modules":
+                    _module = [m for m in _projectData[ITEM_TYPE_MODULES] if m["id"] == _id]
+                    assert _module, getError("A000")
+                    _module = _module[0]
+                    assert _module, getError("A000")
+                    _top["name"] = _module["name"]
+                    #_top["value"] = _module["content"] # Content not needed for top level
+
+                case "text":
+                    _top["value"] = _topData
+    
+                case _:
+                    _top = None
+                    print(f"Unknown type {_type}")
+                    continue
+
+            if _top:
+                _newTops.append(_top.copy())
+            # _index = find_index_by_id(_meeting["tops"], _type, _id)
+            # if _index > -1:
+            #     _newTops.append(_meeting["tops"][_index].copy())
+            # else:
+            #     _newTops.append(_top.copy())
+
+        _meeting["tops"] = _newTops.copy()
+        registry.changed = True
+        registry.project.status = "Changed"
+        updateWindowTitle(e.page, registry.projectName + "*")
+        updateWindowState(e.page, registry.changed)
+        #_newKey = f"meetings:{e.control.key}"
+        #_e = ControlEvent("save", "??", data=_newKey, control=_control, page=registry.page)
+        #selectItem(_e, _newKey, True)
+
+    def add_to_meeting(e):
+        _selecteId = e.control.data
+        _type, _id = e.control.key.split(":")
+        assert _type, getError("A000")
+        assert _id, getError("A000")
+        if _type != "text":
+            _data = [m for m in _projectData[_type] if m["id"] == _selecteId]
+            assert _data, getError("A000")
+            _data = _data[0]
+            assert _data, getError(f"A000")
+
+        _value = ""
+
+        match _type:
+            case "templates":
+                _modules_in_meeting = filter_ids_by_type(_tops_in_meeting, ITEM_TYPE_MODULES)
+                _templates_in_meeting = filter_ids_by_type(_tops_in_meeting, ITEM_TYPE_TEMPLATES)
+                if _selecteId in _templates_in_meeting:
+                    return
+                    
+                _templates_in_meeting.append(_selecteId)
+                _available_templates.remove(_data)
+                _available_template_list.controls.remove(e.control.parent.parent)
+                _available_template_list.update()
+                _pos = len(_templates_in_meeting)
+                _name = _data["name"]
+
+                # filter all available meetings out, that are included in the current template
+                _template = [_e for _e in _projectData[ITEM_TYPE_TEMPLATES] if _e["id"] == _selecteId]
+                if _template:
+                    _template = _template[0]
+                    assert _template, getError("A000")
+                    for _moduleId in _template[ITEM_TYPE_MODULES]:
+                        _index = find_index_by_id(_available_modules, "modules", _moduleId)
+                        if _index >= 0:
+                            _available_modules.pop(_index)
+
+                        if _moduleId in _modules_in_meeting:
+                            _index = _modules_in_meeting.index(_moduleId)
+                            if _index >= 0:
+                                _modules_in_meeting.pop(_index)
+
+                        _control = [m for m in _available_module_list.controls if m.data == _moduleId]
+                        if _control:
+                            _control = _control[0]
+                            assert _control, getError("A000")
+                            _available_module_list.controls.remove(_control)
+                            _available_module_list.update()
+
+                        else:
+                            _control = [m for m in _tops_list.controls if m.data == _moduleId]
+                            if not _control:
+                                continue
+
+                            _control = _control[0]
+                            assert _control, getError("A000")
+                            _tops_list.controls.remove(_control)
+                            _tops_list.update()
+
+                            _modules_in_meeting = filter_ids_by_type(_tops_in_meeting, ITEM_TYPE_MODULES)
+                            if _moduleId in _modules_in_meeting:
+                                _index = _modules_in_meeting.index(_moduleId)
+                                if _index >= 0:
+                                    _modules_in_meeting.pop(_index)
+                                
+                                _index = find_index_by_id(_tops_in_meeting, ITEM_TYPE_MODULES, _moduleId)
+                                if _index >= 0:
+                                    _tops_in_meeting.pop(_index) # Remove module from meeting if template is added
+                
+            case "modules":
+                _modules_in_meeting = filter_ids_by_type(_tops_in_meeting, "modules")
+                if _selecteId in _modules_in_meeting:
+                    return
+                    
+                _modules_in_meeting.append(_selecteId)
+                _available_modules.remove(_data)
+                _available_module_list.controls.remove(e.control.parent.parent)
+                _available_module_list.update()
+                _pos = len(_modules_in_meeting)
+                _name = _data["name"]
+
+            case "text":
+                _name = "Custom Text"
+                _value = _textBox.value
+                _pos = 0
+                _id = -1
+                _data = {
+                    "type": _type,
+                    "id": _id,
+                    "name": _name,
+                    "value": _value
+                }
+                _textBox.value = ""
+                _textBox.update()
+
+            case _:
+                print(f"Unknown type {_type}")
+                return
+    
+        _tops_in_meeting.append(
+            {
+                "type": _type,
+                "id": _id,
+                "name": _name,
+                "value": _value
+            }
+        )    
+        _len = len(_tops_list.controls)        
+        _tops_list.controls.append(
+            newTile(_len, _data, True, remove_from_meeting)
+        )
+        _tops_list.update()
+        reColorItems(_tops_list)
+        reColorItems(_available_template_list)
+        reColorItems(_available_module_list)
+        if _len > 0:
+            _tops_list.controls[-1].bgcolor = Colors.DEEP_ORANGE_900
+            _tops_list.controls[-1].update()
+
+        registry.changed = True
+        registry.project.status = "Changed"
+        updateWindowTitle(e.page, registry.projectName + "*")
+        updateWindowState(e.page, registry.changed)
+        activate_save_button()
+
+    def remove_from_meeting(e):
+        _selecteId = e.control.data
+        _type, _id = e.control.key.split(":")
+        assert _type, getError("A000")
+        assert _id, getError("A000") # TODO: Use a real ID for text?
+        if _type == "text":
+            _text_in_meeting = find_index_by_id(_tops_in_meeting, ITEM_TYPE_TEXT, -1) # Assuming -1 is placeholder ID
+            _textValues = [m for m in _tops_in_meeting if m["type"] == ITEM_TYPE_TEXT]
+        else:
+            _data = [m for m in _projectData[_type] if m["id"] == _selecteId]
+            assert _data, getError("A000")
+            _data = _data[0]
+            assert _data, getError(f"A000")
+
+        match _type:
+            case "templates":
+                _templates_in_meeting = filter_ids_by_type(_tops_in_meeting, ITEM_TYPE_TEMPLATES)
+                if _selecteId not in _templates_in_meeting:
+                    return
+
+                _available_templates.append(_data)
+                if _selecteId in _templates_in_meeting:
+                    _index = find_index_by_id(_tops_in_meeting, ITEM_TYPE_TEMPLATES, _selecteId)
+                    if _index >= 0:
+                        _tops_in_meeting.pop(_index)
+
+                _available_template_list.controls.append(newTile(0, _data, False, add_to_meeting))
+                _available_template_list.update()
+                _tops_list.controls.remove(e.control.parent.parent)
+                _tops_list.update()
+
+                # filter all available meetings out, that are included in the current template
+                _template = _data #[_e for _e in _projectData["templates"] if _e["id"] == _selecteId]
+                if _template:
+                    for _moduleId in _template[ITEM_TYPE_MODULES]:
+                        _data = [m for m in _projectData["modules"] if m["id"] == _moduleId]
+                        assert _data, getError("A000")
+                        _data = _data[0]
+                        assert _data, getError(f"A000")
+                        _available_modules.append(_data)
+                        _available_module_list.controls.append(newTile(0, _data, False, add_to_meeting))
+                        _available_module_list.update()
+                
+            case "modules":
+                _modules_in_meeting = filter_ids_by_type(_tops_in_meeting, ITEM_TYPE_MODULES)
+                if _selecteId not in _modules_in_meeting:
+                    return
+                    
+                _available_modules.append(_data)
+                if _selecteId in _modules_in_meeting:
+                    _index = _modules_in_meeting.index(_selecteId)
+                    if _index >= 0:
+                        _modules_in_meeting.pop(_index)
+                                
+                    _index = find_index_by_id(_tops_in_meeting, ITEM_TYPE_MODULES, _selecteId)
+                    if _index >= 0:
+                        _tops_in_meeting.pop(_index)
+
+                _available_module_list.controls.append(newTile(0, _data, False, add_to_meeting))
+                _available_module_list.update()
+                _tops_list.controls.remove(e.control.parent.parent)
+                _tops_list.update()
+
+            case "text":
+                _control = e.control.parent.parent
+                assert _control, getError("A000")
+                _textBox.value = _control.data
+                _textBox.update()
+                _tops_list.controls.remove(_control)
+                _tops_list.update()
+
+            case _:
+                print(f"Unknown type {_type}")
+                return
+    
+        # _tops_list.controls.append(
+        #     newTile(_pos, _data, True, remove_from_meeting)
+        # )
+        # _tops_list.update()
+        reColorItems(_tops_list)
+        reColorItems(_available_template_list)
+        reColorItems(_available_module_list)
+        registry.changed = True
+        registry.project.status = "Changed"
+        updateWindowTitle(e.page, registry.projectName + "*")
+        updateWindowState(e.page, registry.changed)
+        activate_save_button()
+
+    def _clearText(e):
+        _textBox.value = ""
+        _textBox.update()
+
+    def _select_item(e: ControlEvent, key_) -> None:
+        print(e.control.key, key_)
+
+    # Prepare the UI elements for the dialog
+    _tops_list = ListView(
+        expand=True, spacing=2, padding=2, auto_scroll=False, key=f"meetings:{_id}"
+    )
+
+    _used_moduls = []
+    for _i, _top in enumerate(_tops_in_meeting):
+        _topId = _top["id"]
+        _topType = _top["type"] 
+        match _topType:
+            case "templates":
+                _template = [_e for _e in _projectData[ITEM_TYPE_TEMPLATES] if _e["id"] == _topId][0]
+                _tops_list.controls.append(
+                    newTile(_i, _template, True, remove_from_meeting)
+                )
+            
+            case "modules":
+                _module = [_e for _e in _projectData[ITEM_TYPE_MODULES] if _e["id"] == _topId][0]
+                _tops_list.controls.append(
+                    newTile(_i, _module, True, remove_from_meeting)
+                )
+                _used_moduls.append(_topId)
+            
+            case "text":
+                _top["name"] = "Custom Text" # Assign a default name for display
+                _tops_list.controls.append(
+                    newTile(_i, _top, True, remove_from_meeting)
+                )
+            
+            case _:
+                print(f"Unknown type {_topId['type']}")
+
+    # Prepare the UI elements for the dialog
+    _available_template_list = ListView(
+        expand=False, spacing=2, padding=2, auto_scroll=False
+    )
+    for _i, template in enumerate(_available_templates):
+        _available_template_list.controls.append(
+            newTile(_i, template, False, add_to_meeting)
+        )
+
+    # Prepare the UI elements for the dialog
+    _available_modules = [m for m in _available_modules if m["id"] not in _used_moduls]
+    _available_module_list = ListView(
+        expand=False, spacing=2, padding=2, auto_scroll=False
+    )
+    for _i, module in enumerate(_available_modules):
+        _available_module_list.controls.append(
+            newTile(_i, module, False, add_to_meeting)
+        )
+
+    _dlg = AlertDialog(
+        title=Text(f"Edit Tops for Meeting {_meeting['name']}"),
+        content=Column(
+            controls=[
+                Row(
+                    controls=[
+                        Container(
+                            content=_tops_list,
+                            border=border.all(2, Colors.GREY_500),
+                            border_radius=5,
+                            padding=5,
+                            expand=True,
+                            width=400,
+                            badge=Badge("Meeting Agenda", alignment=alignment.top_left, bgcolor=Colors.GREY_500, text_color=Colors.WHITE)
+                        ),
+                        VerticalDivider(),
+                        Column(
+                            controls=[
+                                Container(
+                                    content=_available_template_list,
+                                    border=border.all(2, Colors.GREY_500),
+                                    border_radius=5,
+                                    padding=5,
+                                    expand=True,
+                                    width=400,
+                                    badge=Badge("Templates", alignment=alignment.top_left, bgcolor=Colors.GREY_500, text_color=Colors.WHITE)
+                                ),
+                                Container(
+                                    content=_available_module_list,
+                                    border=border.all(2, Colors.GREY_500),
+                                    border_radius=5,
+                                    padding=5,
+                                    expand=True,
+                                    width=400,
+                                    badge=Badge("Modules", alignment=alignment.top_left, bgcolor=Colors.GREY_500, text_color=Colors.WHITE)
+                                ),
+                            ]
+                        ),
+                    ],
+                    expand=True,
+                ),
+                Row(
+                    controls=[
+                        _textBox := TextField(
+                            "",
+                            multiline=True,
+                            min_lines=1,
+                            max_lines=4,
+                            max_length=150,
+                            border_radius=5,
+                            border_width=2,
+                            border_color=Colors.GREY_500,
+                            color=Colors.WHITE,                            
+                            label="Custom Text",
+                            hint_text="Add a short temporary Text",
+                            expand=True
+                        ), # TODO: Use "text" constant for key
+                        _clearTextButton := IconButton(icon=Icons.CLEAR, key=f"{"text"}:-1", data=-1, on_click=_clearText),
+                        _addTextButton := IconButton(icon=Icons.ADD, key=f"{"text"}:-1", data=-1, on_click=add_to_meeting),
+                    ],
+                    alignment="start",
+                ),
+            ],
+            alignment="end",
+            expand=True,
+        ),
+        actions=[
+            ElevatedButton("Close", key=_id, on_click=close_dlg),
+            _saveButton := ElevatedButton("Save", disabled=True, key=_id, on_click=save_modules),
+        ],
+        actions_alignment="end",
+        # open=True,
+        # adaptive=True,
+    )
+
+    _control.page.open(_dlg)
+
+# Function to handle 'Ok' action for module edit (moved from handleContentActions)
+def handle_ok(page, control, data) -> None:
+    """Handles the OK action after editing a module."""
+    # ... implementation of module-specific OK logic from handleContentActions ...
+    # Remember to update registry.changed, window title/state
+    pass # Replace with actual code
+
+# Function to handle 'Cancel' action for module edit (moved from handleContentActions)
+def handle_cancel(page, control, data) -> None:
+    """Handles the Cancel action while editing a module."""
+    # ... implementation of module-specific Cancel logic from handleContentActions ...
+    pass # Replace with actual code

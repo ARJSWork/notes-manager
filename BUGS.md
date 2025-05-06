@@ -1,8 +1,10 @@
-+ Tooltip über Icons?
++ IMPROVEMENT: Tooltip über Icons?
 
-+ Statt Template Nummer, Template Namen bei Meetings als Badge verwenden
++ IMPROVEMENT: Statt Template Nummer, Template Namen bei Meetings als Badge verwenden
 
-+ Render & Save bei Web wegnehmen, da es nicht funktioniert
++ BUG: Drawer Menu not working
+
+# Fixed: Render & Save bei Web wegnehmen, da es nicht funktioniert
 
 # Fixed: Copy Icon für Module und Templates
 
