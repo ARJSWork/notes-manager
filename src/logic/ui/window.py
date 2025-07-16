@@ -1,5 +1,5 @@
 ###
-# File:   src\logic\ui\ui.py
+# File:   src\logic\ui\window.py
 # Date:   2025-01-27 / 13:07
 # Author: alexrjs
 ###
@@ -24,7 +24,7 @@ def updateWindowTitle(page:Page, title:str=None) -> None:
     # if not title:
     #     return
     
-    registry.ui.projectTitle.value = f"Project: {title if title else ''}"
+    registry.ui.noteTitle.value = f"Notes: {title if title else ''}"
     page.update()
 
 
@@ -33,12 +33,12 @@ def updateWindowState(page: Page, changed: bool=False) -> None:
         return
     
     if changed:
-        registry.ui.projectTitle.color = Colors.AMBER
+        registry.ui.noteTitle.color = Colors.AMBER
         registry.ui.menubar.style.bgcolor = Colors.RED_600
         registry.ui.dragBar.bgcolor = Colors.RED_600
 
     else:
-        registry.ui.projectTitle.color = Colors.BLACK
+        registry.ui.noteTitle.color = Colors.BLACK
         registry.ui.menubar.style.bgcolor = Colors.GREEN_700
         registry.ui.dragBar.bgcolor = Colors.GREEN_700
 

@@ -10,7 +10,6 @@ from flet import MenuBar, MenuItemButton, SubmenuButton, Icon, Text, Divider, Ro
 from flet import alignment, ButtonStyle, Colors, ControlState, MenuStyle, MouseCursor, Icons, RoundedRectangleBorder
 from db import register, registry
 #from logic.pattern.observer import Observable, Observer
-from models import ExtendedNamespace
 
 
 # constants
@@ -45,7 +44,7 @@ def build(**kwargs) -> Row:
         padding=10,
     )
 
-    register("ui.projectTitle", Text("Project: ", color=Colors.BLACK))
+    register("ui.noteTitle", Text("Notes: ", color=Colors.BLACK))
 
     _quit = MenuItemButton(
         content=Text("Quit"),
@@ -71,7 +70,7 @@ def build(**kwargs) -> Row:
             MenuItemButton(
                 content=Icon(Icons.MENU_OUTLINED, key="drawer"),
                 style=_style,
-                on_click=lambda e: registry.subjects["ui.menu.drawer"].notify(e),
+                #on_click=lambda e: registry.subjects["ui.menu.drawer"].notify(e),
             ),
             _smb := SubmenuButton(
                 content=Text("File"),
@@ -143,7 +142,7 @@ def build(**kwargs) -> Row:
             #     ],
             # ),
             MenuItemButton(
-                content=registry.ui.projectTitle,
+                content=registry.ui.noteTitle,
                 style=_style,
                 #on_click=handle_menu_item_click,
             ),
@@ -157,12 +156,11 @@ def build(**kwargs) -> Row:
 
     # register controls
     register("ui.menubar", _menubar)
-    register("ui.menu", ExtendedNamespace())
-    register("ui.menu.file", ExtendedNamespace())
     register("ui.menu.file.new", _menubar.controls[1].controls[0])
     register("ui.menu.file.open", _menubar.controls[1].controls[1])
     register("ui.menu.file.save", _menubar.controls[1].controls[2])
     register("ui.menu.file.close", _menubar.controls[1].controls[3])
+    register("ui.menu.file.about", _menubar.controls[1].controls[4])
     if not _page.web:
         _smb.controls.append(_quit)
         register("ui.menu.file.quit", _menubar.controls[1].controls[6])
@@ -172,7 +170,9 @@ def build(**kwargs) -> Row:
     registry.subjects.register("ui.menu.file.open")
     registry.subjects.register("ui.menu.file.save")
     registry.subjects.register("ui.menu.file.close")
+    registry.subjects.register("ui.menu.file.about")
     registry.subjects.register("ui.menu.file.quit")
+    #registry.subjects.register("ui.menu.manage.categories")
     
     _row = Row(
         controls=[

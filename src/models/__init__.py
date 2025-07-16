@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 
 # functions/classes
-class ExtendedNamespace(SimpleNamespace):
+class ExtendedNamespaceOld(SimpleNamespace):
     """ Extended version from SimpleNamespace """
 
     def set(self, attribute_:str=None, value_:object=None) -> None:
@@ -39,7 +39,7 @@ class ExtendedNamespace(SimpleNamespace):
         
         setattr(self, attribute_, value_)
 
-    def get_attribute(self, attribute_:str=None) -> object:
+    def get(self, attribute_:str=None) -> object:
         """
         Gets the value of an attribute on the ExtendedNamespace dynamically.
 

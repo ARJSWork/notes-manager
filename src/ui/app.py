@@ -10,11 +10,9 @@ from flet import app, Control, Page, Row, IconButton, Column, Container, Text, S
 from flet import MainAxisAlignment, Icons, Colors, border, alignment
 from db import register, registry
 from logic.pattern.observer import ObservablesList
-from logic.ui.project import handleClick, handleContentActions
-from models import ExtendedNamespace
 from logic.ui.menu import new_callback, open_callback, save_callback, handle_menu_item_click
-from ui.bars import menu, content, status
-from ui.views import project
+from ui.panels import menu, content, status
+from ui.views import sidebar
 
 # constants
 
@@ -31,15 +29,14 @@ def layout() -> list:
             return
 
         _col2.controls.clear()
-        _col2.controls = items_
+        _col2.controls.extend(items_)
         _col2.update()
 
     _border = border.all(1, Colors.WHITE24)
 
     _col1 = Column(
         controls=[
-            #Text("Project", size=14, color=Colors.WHITE),
-            project.build()
+            sidebar.build()
         ],
         width=400,
         scroll=ScrollMode.AUTO,
@@ -48,19 +45,19 @@ def layout() -> list:
         alignment=alignment.top_left,
         border=_border,
         padding=2,
-        #bgcolor=Colors.BLUE, 
+        bgcolor=Colors.GREY_800,
         content=_col1,
     )
     _col2 = Stack(
         controls=[
-            Text("Choose a Project with 'File Menu'...", size=16, color=Colors.WHITE),
+            Text("Choose a notes collection with 'File Menu'...", size=16, color=Colors.WHITE),
         ],
-        alignment=alignment.top_left,
+        alignment=alignment.center,
         expand=True,
     )
     # _col2 = Column(
     #     controls=[
-    #         Text("Choose a Project with 'File Menu'...", size=16, color=Colors.WHITE),
+    #         Text("Choose a Notes with 'File Menu'...", size=16, color=Colors.WHITE),
     #     ],
     #     alignment=MainAxisAlignment.CENTER,
     #     expand=True,
@@ -70,12 +67,12 @@ def layout() -> list:
         border=_border,
         expand=True,
         padding=5,
-        #bgcolor=Colors.GREEN, 
+        bgcolor=Colors.GREY_700,
         content=_col2,
     )
-    registry.subjects.register("projectView").register(handleClick)
     registry.subjects.register("contentView").register(updateContent)
-    registry.subjects.register("contentActions").register(handleContentActions)
+    # registry.subjects.register("contentActions").register(handleContentActions)
+    # registry.subjects.register("noteView").register(handleClick)
 
     return [_cont1, _cont2]
 
@@ -101,8 +98,7 @@ def ui(page_:Page) -> None:
     # Do Layout stuff
     register("page", page_)
     register("subjects", ObservablesList("subjects"))
-    register("project", None)
-    register("ui", ExtendedNamespace())
+    register("note", None)
     register("ui.menuBar", menu.build())
 
     # Do Layout stuff
@@ -126,12 +122,14 @@ def ui(page_:Page) -> None:
     registry.subjects["ui.menu.file.open"].register(open_callback)
     registry.subjects["ui.menu.file.save"].register(save_callback)
     registry.subjects["ui.menu.file.close"].register(handle_menu_item_click)
+    registry.subjects["ui.menu.file.about"].register(handle_menu_item_click)
     registry.subjects["ui.menu.file.quit"].register(handle_menu_item_click)
-    page_.add(register("ui.contentBar", content.build(layout())))
-    page_.add(register("ui.statusBar", status.build()))
+    register("ui.contentBar", content.build(layout()))
+    page_.add(registry.ui.contentBar)
+    #page_.add(register("ui.statusBar", status.build()))
 
     # Finish up
-    status.updateStatus("Ready.")
+    #status.updateStatus("Ready.")
 
 
 def run() -> None:

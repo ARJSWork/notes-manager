@@ -8,15 +8,13 @@
 # imports
 from enum import Enum
 from flet import ControlEvent, Page, Icon, Colors, Text
-from db import register, registry
+from db import register, registry #, create_default_collection, save_notes_collection, load_notes_collection
 from db.messages import getError
-from logic.ui import ContentAction, ProjectState
+from logic.ui import ContentAction, NoteState
 from logic.ui.window import updateWindowState, updateWindowTitle
-from models.projectmanager import ProjectManager
 from ui.dialogs import confirm as confirmDialog
 from ui.dialogs import file as fileDialog
-from ui.dialogs import project as projectDialog
-from ui.views import project
+from ui.dialogs import notescollection as notesCollectionDialog
 
 
 # constants
@@ -89,7 +87,7 @@ def new_callback(event:str, e:ControlEvent) -> None:
     print(f"{_element.value}.on_click")
 
     # Rufe den Open File Dialog auf
-    projectDialog.show(e.page, setMenuState, MenuState.NEW)
+    notesCollectionDialog.show(e.page, setMenuState, MenuState.NEW)
 
 
 def open_callback(event:str, e:ControlEvent) -> None:
@@ -166,19 +164,21 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             registry.ui.menu.file.open.disabled = True
             registry.ui.menu.file.save.disabled = False
             registry.ui.menu.file.close.disabled = False
+            registry.ui.menu.manage.visible = True
             registry.changed = False
-            register("project", ProjectManager(registry.projectFile))
-            registry.project.load()
-            updateWindowTitle(page, registry.projectName)
+            #register("note", notesmanager(registry.notesFile))
+            registry.note.load()
+            updateWindowTitle(page, registry.notesName)
             updateWindowState(page, registry.changed)
             # Update
-            project.refresh(registry.project)
-            _control = registry.project.controls["templates:1"]
-            _control.key = "templates:1"
-            _e = ControlEvent("initial", "??", data=_control.key, control=_control, page=page)
-            #registry.subjects["contentActions"].notify(_e, ProjectState.SELECTED)
-            registry.subjects["projectView"].notify(_e, ProjectState.SELECTED)
-            #registry.subjects["contentView"].notify(page, [])
+            #notes.refresh(registry.note, "all")
+            # registry.ui.categoryFilter.visible = True
+            # _control = registry.note.controls["templates:1"]
+            # _control.key = "templates:1"
+            # _e = ControlEvent("initial", "??", data=_control.key, control=_control, page=page)
+            # registry.subjects["contentActions"].notify(_e, NoteState.SELECTED)
+            # registry.subjects["noteView"].notify(_e, NoteState.SELECTED)
+            registry.subjects["contentView"].notify(page, [])
             page.window.to_front()
         
         case MenuState.CLOSED:
@@ -187,14 +187,16 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             registry.ui.menu.file.open.disabled = False
             registry.ui.menu.file.save.disabled = True
             registry.ui.menu.file.close.disabled = True
-            registry.projectFile = None
-            registry.projectName = None
+            registry.ui.menu.manage.visible = False
+            registry.ui.categoryFilter.visible = False
+            registry.notesFile = None
+            registry.notesName = None
             registry.changed = False
-            registry.project = None
-            updateWindowTitle(page, registry.projectName)
+            registry.note = None
+            updateWindowTitle(page, registry.notesName)
             updateWindowState(page, registry.changed)
-            project.clear()
-            registry.subjects["contentView"].notify(page, [Text("Choose a Project with 'File Menu'...", size=16, color=Colors.WHITE)])
+            #notes.clear()
+            registry.subjects["contentView"].notify(page, [Text("Choose a notes collection with 'File Menu'...", size=16, color=Colors.WHITE)])
             page.window.to_front()
 
         case MenuState.SAVED:
@@ -203,8 +205,8 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             registry.ui.menu.file.save.disabled = False
             registry.ui.menu.file.close.disabled = False
             registry.changed = False
-            registry.project.save()
-            updateWindowTitle(page, registry.projectName)
+            #save_notes_collection(registry.note, registry.notesFile)
+            updateWindowTitle(page, registry.notesName)
             updateWindowState(page, registry.changed)
             print("Menu is saved")
             page.window.to_front()
@@ -216,11 +218,12 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             registry.ui.menu.file.save.disabled = False
             registry.ui.menu.file.close.disabled = False
             registry.changed = True
-            register("project", ProjectManager(registry.projectFile))
-            updateWindowTitle(page, registry.projectName)
+            #register("note", create_default_collection(registry.notesName))
+            updateWindowTitle(page, registry.notesName)
             updateWindowState(page, registry.changed)
             # Update
-            project.refresh(registry.project)
+            #notes.refresh(registry.note, "all")
+            # registry.ui.categoryFilter.visible = True
             registry.subjects["contentView"].notify(page, [])
             page.window.to_front()
 

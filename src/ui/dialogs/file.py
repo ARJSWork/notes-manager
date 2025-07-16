@@ -40,13 +40,13 @@ def showOpen(page: Page, callback:callable, state:str=None) -> None:
 
             _path = path.join(start_directory, _name.lower().replace(" ", "_"))
 
-        register("projectFile", _path)
-        register("projectName", path.basename(_name.split(".")[0]))
+        register("notesFile", _path)
+        register("notesName", path.basename(_name.split(".")[0]))
         if callback:
             callback(page, state)
 
     # Definiere das Startverzeichnis
-    start_directory = path.join(getcwd(), "projects")
+    start_directory = path.join(getcwd(), "notes")
     
     # Öffne den Dateidialog
     _dialog = FilePicker(on_result=pick_files_result)
@@ -54,7 +54,7 @@ def showOpen(page: Page, callback:callable, state:str=None) -> None:
     page.update()
 
     _dialog.pick_files(
-        dialog_title="Select a project JSON file",
+        dialog_title="Select a note JSON file",
         allowed_extensions=["json"],
         file_type=FilePickerFileType.CUSTOM,
         initial_directory=start_directory,
@@ -74,8 +74,8 @@ def showSave(page: Page, callback:callable, state:str=None, overrides_:dict=None
 
     # Definiere das Startverzeichnis
     if not overrides_:
-        _folder = path.dirname(registry.projectFile)
-        _filename = path.basename(registry.projectFile)
+        _folder = path.dirname(registry.notesFile)
+        _filename = path.basename(registry.notesFile)
         start_directory = path.join(getcwd(), _folder)
 
     else:
@@ -97,7 +97,7 @@ def showSave(page: Page, callback:callable, state:str=None, overrides_:dict=None
     page.update()
 
     _dialog.save_file(
-        dialog_title="Select a project JSON file",
+        dialog_title="Select a note JSON file",
         allowed_extensions=["json"],
         file_type=FilePickerFileType.CUSTOM,
         initial_directory=start_directory,

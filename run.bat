@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+tar -xf AgendaMaker.tar
+
 REM --- Configuration ---
 REM Set the relative path to your main Python script from this batch file's location
 SET "PYTHON_SCRIPT=src\__main__.py"
@@ -89,11 +91,12 @@ echo.
 
 REM --- All checks passed, run the Flet Application ---
 echo Starting Flet application...
-echo Command: flet run --web --port 8765 --name "Web Agenda Manager" "%PYTHON_SCRIPT%"
+echo Command: flet run --name "Agenda Manager" "%PYTHON_SCRIPT%"
 echo.
 
 rem flet run --web --name "Agenda Manager" "%PYTHON_SCRIPT%"
-START "Agenda-Manager - Flet Web" /LOW /MIN flet run --web --port 8765 --name "Web Agenda-Manager" "%PYTHON_SCRIPT%"
+rem START "Agenda-Manager - Flet" /LOW /MIN flet run --assets src\assets --hidden --name "Agenda-Manager" "%PYTHON_SCRIPT%"
+flet run --assets src\assets --hidden --name "Agenda-Manager" "%PYTHON_SCRIPT%"
 
 REM Capture the exit code from flet run
 SET FLET_EXIT_CODE=%ERRORLEVEL%

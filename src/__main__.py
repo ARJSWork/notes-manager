@@ -43,7 +43,7 @@ def parse_arguments():
 def main(args_:Namespace) -> None:
     """ Main function """
 
-    print("Hello world! This is a simple Flet Demo!")
+    print("Hello world! This is Notes Manager!")
     register("args", args_)
     register("dirty", False)
     app.run()

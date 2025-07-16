@@ -1,5 +1,5 @@
 ###
-# File:   src\db\errors.py
+# File:   src\db\messages.py
 # Date:   2025-02-18 / 07:19
 # Author: alexrjs
 ###
@@ -10,7 +10,7 @@
 
 # constants
 _CODEMAPPING = {
-    "A": "Project",
+    "A": "Notes",
     "U": "UI",
     "F": "File"
 }
