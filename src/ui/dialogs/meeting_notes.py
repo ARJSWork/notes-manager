@@ -15,11 +15,12 @@ from flet import (
     ElevatedButton,
     ListView,
     Page,
+    Radio,
+    RadioGroup,
     Row,
     Text,
     dropdown,
 )
-from db import registry
 from models.notes import DEFAULT_TEMPLATES, DEFAULT_MODULES
 
 
@@ -39,14 +40,27 @@ def show(page: Page, callback: callable, state: str = None):
         page.update()
 
     def on_date_selected(e):
-        selected_date.value = f"Selected: {date_picker.value.strftime('%Y-%m-%d')}"
+        selected_date.value = datetime.now().strftime('%Y-%m-%d')
+        page.update()
+
+    def on_option_change(e):
+        if e.control.value == "template":
+            template_title.visible = True
+            template_options.visible = True
+            modules_title.visible = False
+            module_list.visible = False
+        else:
+            template_title.visible = False
+            template_options.visible = False
+            modules_title.visible = True
+            module_list.visible = True
         page.update()
 
     selected_date = Text(datetime.now().strftime('%Y-%m-%d'))
 
     date_picker = DatePicker(
-        first_date=datetime.strptime("2025-01-01", "%Y-%m-%d"),
-        last_date=datetime.strptime("2030-12-31", "%Y-%m-%d"),
+        first_date=datetime(2023, 1, 1),
+        last_date=datetime(2030, 12, 31),
         date_picker_entry_mode="CALENDAR_ONLY",
         date_picker_mode="DAY",
         help_text="Select a date",
@@ -54,16 +68,29 @@ def show(page: Page, callback: callable, state: str = None):
     )
     page.overlay.append(date_picker)
 
-    template_dropdown = Dropdown(
-        options=[dropdown.Option(t) for t in DEFAULT_TEMPLATES],
-        label="Pick a Template",
-        width=300,
+    template_title = Text("Templates", visible=True)
+
+    template_options = ListView(
+        controls=[
+            RadioGroup(
+                content=Column(
+                    [Radio(value=t, label=t) for t in DEFAULT_TEMPLATES.keys()]
+                ),
+                value=list(DEFAULT_TEMPLATES.keys())[0] if DEFAULT_TEMPLATES else None,
+            )
+        ],
+        spacing=5,
+        height=150,
+        visible=True,
     )
+
+    modules_title = Text("Modules", visible=False)
 
     module_list = ListView(
         controls=[Checkbox(label=m) for m in DEFAULT_MODULES],
         spacing=5,
         height=150,
+        visible=False,
     )
 
     dialog = AlertDialog(
@@ -76,12 +103,23 @@ def show(page: Page, callback: callable, state: str = None):
                         selected_date,
                         ElevatedButton(
                             "Select Date",
-                            on_click=lambda _: registry.page.open(date_picker),
+                            on_click=lambda _: date_picker.pick_date(),
                         ),
                     ]
                 ),
-                template_dropdown,
-                Text("Modules"),
+                RadioGroup(
+                    content=Row(
+                        [
+                            Radio(value="template", label="Use Template"),
+                            Radio(value="modules", label="Select Modules"),
+                        ]
+                    ),
+                    on_change=on_option_change,
+                    value="template",
+                ),
+                template_title,
+                template_options,
+                modules_title,
                 module_list,
             ],
             spacing=10,
@@ -89,7 +127,7 @@ def show(page: Page, callback: callable, state: str = None):
         ),
         actions=[
             ElevatedButton("Cancel", on_click=on_cancel_click),
-            ElevatedButton("OK", on_click=on_ok_click),
+            ElevatedButton("OK", on_ok_click),
         ],
     )
 
