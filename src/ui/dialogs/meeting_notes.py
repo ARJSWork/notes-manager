@@ -20,6 +20,7 @@ from flet import (
     Row,
     Text,
     dropdown,
+    ScrollMode,
 )
 from models.notes import DEFAULT_TEMPLATES, DEFAULT_MODULES
 
@@ -123,7 +124,7 @@ def show(page: Page, callback: callable, state: str = None):
                 module_list,
             ],
             spacing=10,
-            height=300,
+            height=210,
         ),
         actions=[
             ElevatedButton("Cancel", on_click=on_cancel_click),
