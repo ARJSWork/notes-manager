@@ -21,7 +21,7 @@ from ui.views import sidebar
 
 
 # functions/classes
-def layout() -> list:
+def layout(page_:Page) -> list:
     """Content of the page"""
 
     def updateContent(caller, page, items_:list[Control]) -> None:
@@ -36,7 +36,7 @@ def layout() -> list:
 
     _col1 = Column(
         controls=[
-            sidebar.build()
+            sidebar.build(page_)
         ],
         width=400,
         scroll=ScrollMode.AUTO,
@@ -124,7 +124,7 @@ def ui(page_:Page) -> None:
     registry.subjects["ui.menu.file.close"].register(handle_menu_item_click)
     registry.subjects["ui.menu.file.about"].register(handle_menu_item_click)
     registry.subjects["ui.menu.file.quit"].register(handle_menu_item_click)
-    register("ui.contentBar", content.build(layout()))
+    register("ui.contentBar", content.build(layout(page_)))
     page_.add(registry.ui.contentBar)
     #page_.add(register("ui.statusBar", status.build()))
 
