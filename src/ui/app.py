@@ -48,6 +48,11 @@ def layout(page_:Page) -> list:
         bgcolor=Colors.GREY_800,
         content=_col1,
     )
+    # Hide sidebar initially if no notes collection is open
+    sidebar_visible = bool(getattr(registry, 'notesFile', None) or getattr(registry, 'notesName', None))
+    _cont1.visible = sidebar_visible
+    # Register the sidebar container so other code (menu state) can show/hide it
+    register("ui.sidebar.container", _cont1)
     _col2 = Stack(
         controls=[
             Text("Choose a notes collection with 'File Menu'...", size=16, color=Colors.WHITE),

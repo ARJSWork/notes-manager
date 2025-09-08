@@ -180,6 +180,39 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             # registry.subjects["noteView"].notify(_e, NoteState.SELECTED)
             registry.subjects["contentView"].notify(page, [])
             page.window.to_front()
+            # Show sidebar container if registered
+            try:
+                registry.ui.sidebar.container.visible = True
+            except Exception:
+                pass
+            try:
+                page.update()
+            except Exception:
+                pass
+            # Enable Add buttons but keep Edit/Delete disabled until selection
+            try:
+                registry.ui.sidebar.MeetingNotes.add.disabled = False
+                registry.ui.sidebar.MeetingNotes.edit.disabled = True
+                registry.ui.sidebar.MeetingNotes.delete.disabled = True
+                # Also enable templates/modules/categories add buttons
+                if registry.ui.sidebar.Templates:
+                    registry.ui.sidebar.Templates.add.disabled = False
+                    registry.ui.sidebar.Templates.edit.disabled = True
+                    registry.ui.sidebar.Templates.delete.disabled = True
+                if registry.ui.sidebar.Modules:
+                    registry.ui.sidebar.Modules.add.disabled = False
+                    registry.ui.sidebar.Modules.edit.disabled = True
+                    registry.ui.sidebar.Modules.delete.disabled = True
+                if registry.ui.sidebar.Categories:
+                    registry.ui.sidebar.Categories.add.disabled = False
+                    registry.ui.sidebar.Categories.edit.disabled = True
+                    registry.ui.sidebar.Categories.delete.disabled = True
+            except Exception:
+                pass
+            try:
+                page.update()
+            except Exception:
+                pass
         
         case MenuState.CLOSED:
             print("Menu is closed")
@@ -198,6 +231,38 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             #notes.clear()
             registry.subjects["contentView"].notify(page, [Text("Choose a notes collection with 'File Menu'...", size=16, color=Colors.WHITE)])
             page.window.to_front()
+            # Disable sidebar buttons on close
+            try:
+                registry.ui.sidebar.MeetingNotes.add.disabled = True
+                registry.ui.sidebar.MeetingNotes.edit.disabled = True
+                registry.ui.sidebar.MeetingNotes.delete.disabled = True
+                if registry.ui.sidebar.Templates:
+                    registry.ui.sidebar.Templates.add.disabled = True
+                    registry.ui.sidebar.Templates.edit.disabled = True
+                    registry.ui.sidebar.Templates.delete.disabled = True
+                if registry.ui.sidebar.Modules:
+                    registry.ui.sidebar.Modules.add.disabled = True
+                    registry.ui.sidebar.Modules.edit.disabled = True
+                    registry.ui.sidebar.Modules.delete.disabled = True
+                if registry.ui.sidebar.Categories:
+                    registry.ui.sidebar.Categories.add.disabled = True
+                    registry.ui.sidebar.Categories.edit.disabled = True
+                    registry.ui.sidebar.Categories.delete.disabled = True
+            except Exception:
+                pass
+            try:
+                page.update()
+            except Exception:
+                pass
+            # Hide sidebar container if no notes are open
+            try:
+                registry.ui.sidebar.container.visible = False
+            except Exception:
+                pass
+            try:
+                page.update()
+            except Exception:
+                pass
 
         case MenuState.SAVED:
             registry.ui.menu.file.new.disabled = True
@@ -226,6 +291,38 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             # registry.ui.categoryFilter.visible = True
             registry.subjects["contentView"].notify(page, [])
             page.window.to_front()
+            # Show sidebar container if registered (new collection created)
+            try:
+                registry.ui.sidebar.container.visible = True
+            except Exception:
+                pass
+            try:
+                page.update()
+            except Exception:
+                pass
+            # Enable Add buttons but keep Edit/Delete disabled until selection
+            try:
+                registry.ui.sidebar.MeetingNotes.add.disabled = False
+                registry.ui.sidebar.MeetingNotes.edit.disabled = True
+                registry.ui.sidebar.MeetingNotes.delete.disabled = True
+                if registry.ui.sidebar.Templates:
+                    registry.ui.sidebar.Templates.add.disabled = False
+                    registry.ui.sidebar.Templates.edit.disabled = True
+                    registry.ui.sidebar.Templates.delete.disabled = True
+                if registry.ui.sidebar.Modules:
+                    registry.ui.sidebar.Modules.add.disabled = False
+                    registry.ui.sidebar.Modules.edit.disabled = True
+                    registry.ui.sidebar.Modules.delete.disabled = True
+                if registry.ui.sidebar.Categories:
+                    registry.ui.sidebar.Categories.add.disabled = False
+                    registry.ui.sidebar.Categories.edit.disabled = True
+                    registry.ui.sidebar.Categories.delete.disabled = True
+            except Exception:
+                pass
+            try:
+                page.update()
+            except Exception:
+                pass
 
         case _:
             print("Menu is unknown")

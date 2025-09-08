@@ -23,17 +23,41 @@ from flet import (
     ScrollMode,
 )
 from models.notes import DEFAULT_TEMPLATES, DEFAULT_MODULES
+from db import registry
 
 
 # functions/classes
 def show(page: Page, callback: callable, state: str = None):
     """Show a dialog to add a new meeting note."""
+    print("meeting_notes.show called, callback=", bool(callback))
 
     def on_ok_click(e):
         """Callback for the Ok button."""
+        print("meeting_notes: OK clicked")
         page.close(dialog)
         page.update()
-        # TODO: Process the selected data
+        # Collect selected template and date and pass to caller via callback
+        try:
+            tmpl = None
+            if template_options and template_options.controls:
+                rg = template_options.controls[0]
+                tmpl = getattr(rg, "value", None)
+        except Exception:
+            tmpl = None
+
+        date_str = selected_date.value if selected_date else None
+        title = f"{tmpl} {date_str}" if tmpl or date_str else None
+        # Visible feedback to main area so we can confirm the handler executed
+        try:
+            registry.subjects["contentView"].notify(page, [Text(f"meeting_notes OK: {title}")])
+        except Exception:
+            pass
+        if callback:
+            try:
+                print("meeting_notes: calling callback with", {"title": title, "template": tmpl, "date": date_str})
+                callback(page, {"title": title, "template": tmpl, "date": date_str})
+            except Exception as ex:
+                print("meeting_notes callback error:", ex)
 
     def on_cancel_click(e):
         """Callback for the Cancel button."""
@@ -41,7 +65,13 @@ def show(page: Page, callback: callable, state: str = None):
         page.update()
 
     def on_date_selected(e):
-        selected_date.value = datetime.now().strftime('%Y-%m-%d')
+        # Use the value provided by the DatePicker event instead of now()
+        val = getattr(e.control, "value", None)
+        if val:
+            try:
+                selected_date.value = val.strftime('%Y-%m-%d')
+            except Exception:
+                selected_date.value = str(val)
         page.update()
 
     def on_option_change(e):
@@ -67,7 +97,8 @@ def show(page: Page, callback: callable, state: str = None):
         help_text="Select a date",
         on_change=on_date_selected,
     )
-    page.overlay.append(date_picker)
+    # Note: DatePicker should be opened with page.open(date_picker)
+    # (don't append to overlay here; open it when the user clicks the button)
 
     template_title = Text("Templates", visible=True)
 
@@ -94,6 +125,7 @@ def show(page: Page, callback: callable, state: str = None):
         visible=False,
     )
 
+
     dialog = AlertDialog(
         title=Text("Add Meeting Note"),
         modal=True,
@@ -104,7 +136,7 @@ def show(page: Page, callback: callable, state: str = None):
                         selected_date,
                         ElevatedButton(
                             "Select Date",
-                            on_click=lambda _: date_picker.pick_date(),
+                            on_click=lambda _: page.open(date_picker),
                         ),
                     ]
                 ),
@@ -128,7 +160,7 @@ def show(page: Page, callback: callable, state: str = None):
         ),
         actions=[
             ElevatedButton("Cancel", on_click=on_cancel_click),
-            ElevatedButton("OK", on_ok_click),
+            ElevatedButton("OK", on_click=on_ok_click),
         ],
     )
 
