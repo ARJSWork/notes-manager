@@ -22,6 +22,7 @@ from flet import RadioGroup, Radio
 from db import registry, register
 from models.notes import DEFAULT_CATEGORIES, DEFAULT_MODULES, DEFAULT_TEMPLATES
 from ui.dialogs import meeting_notes
+from ui.panels.note_view import build_note_view
 
 def create_panel_header(title: str, page, enabled: bool = False, add_callback=None, edit_callback=None, delete_callback=None):
     """Creates a ListTile with action buttons for the ExpansionPanel header.
@@ -181,23 +182,12 @@ def build(page: Page):
                 except Exception:
                     pass
 
-                # Update main content for this note
+                # Update main content for this note using centralized renderer
                 try:
                     nd = getattr(item, "note_data", None) or {}
-                    tmpl = nd.get("template")
-                    content_controls = []
-                    if tmpl and tmpl in DEFAULT_TEMPLATES:
-                        t = DEFAULT_TEMPLATES[tmpl]
-                        mods = t.get("modules", [])
-                        for m in mods:
-                            lines = t.get(m, []) if isinstance(t.get(m, []), list) else []
-                            content_controls.append(Text(f"## {m}"))
-                            for ln in lines:
-                                content_controls.append(Text(ln))
-                    else:
-                        content_controls.append(Text(nd.get("title") or title))
+                    col = build_note_view(p, nd, title_fallback=title)
                     try:
-                        registry.subjects["contentView"].notify(p, [Column(controls=content_controls)])
+                        registry.subjects["contentView"].notify(p, [col])
                     except Exception:
                         pass
                 except Exception:
@@ -252,8 +242,13 @@ def build(page: Page):
                 else:
                     content_controls.append(Text(title))
                 try:
-                    # Wrap the text controls into a Column so they layout vertically
-                    registry.subjects["contentView"].notify(p, [Column(controls=content_controls)])
+                    # Build the default note view and publish it
+                    nd = data or {}
+                    col = build_note_view(p, nd, title_fallback=title)
+                    try:
+                        registry.subjects["contentView"].notify(p, [col])
+                    except Exception:
+                        pass
                 except Exception:
                     pass
             except Exception:
