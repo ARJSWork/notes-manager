@@ -23,7 +23,7 @@ from db import registry, register
 from models.notes import DEFAULT_CATEGORIES, DEFAULT_MODULES, DEFAULT_TEMPLATES
 from ui.dialogs import meeting_notes
 
-def create_panel_header(title: str, page, enabled: bool = False, add_callback=None):
+def create_panel_header(title: str, page, enabled: bool = False, add_callback=None, edit_callback=None, delete_callback=None):
     """Creates a ListTile with action buttons for the ExpansionPanel header.
 
     The `enabled` flag controls whether action buttons are active. When no
@@ -50,8 +50,8 @@ def create_panel_header(title: str, page, enabled: bool = False, add_callback=No
             print(f"header.add action error for {title}:", ex)
 
     add_btn = IconButton(Icons.ADD_CIRCLE_OUTLINE, on_click=_add_on_click, disabled=add_button_disabled)
-    edit_btn = IconButton(Icons.EDIT_OUTLINED, on_click=lambda e: print(f"Edit {title}"), disabled=edit_delete_disabled)
-    delete_btn = IconButton(Icons.DELETE_OUTLINE, on_click=lambda e: print(f"Delete {title}"), disabled=edit_delete_disabled)
+    edit_btn = IconButton(Icons.EDIT_OUTLINED, on_click=(edit_callback if edit_callback else (lambda e: print(f"Edit {title}"))), disabled=edit_delete_disabled)
+    delete_btn = IconButton(Icons.DELETE_OUTLINE, on_click=(delete_callback if delete_callback else (lambda e: print(f"Delete {title}"))), disabled=edit_delete_disabled)
 
     # Register buttons under a predictable registry path so other code can update them
     # e.g. registry.ui.sidebar.MeetingNotes.add
@@ -282,6 +282,43 @@ def build(page: Page):
         except Exception as ex:
             print("sidebar: meeting_notes.show error:", ex)
 
+    # Delete handler for meeting notes
+    from ui.dialogs import confirm as confirm_dialog
+
+    def _meeting_delete(e):
+        try:
+            # find selected item
+            sel = None
+            for c in meeting_list.controls:
+                if getattr(c, "_is_selected", False):
+                    sel = c
+                    break
+            if not sel:
+                return
+
+            def _do_delete():
+                try:
+                    meeting_list.controls.remove(sel)
+                except Exception:
+                    pass
+                try:
+                    registry.ui.sidebar.MeetingNotes.edit.disabled = True
+                    registry.ui.sidebar.MeetingNotes.delete.disabled = True
+                except Exception:
+                    pass
+                try:
+                    registry.subjects["contentView"].notify(page, [])
+                except Exception:
+                    pass
+                try:
+                    page.update()
+                except Exception:
+                    pass
+
+            confirm_dialog.show(page, _do_delete)
+        except Exception as ex:
+            print("_meeting_delete error:", ex)
+
     # Register the add callback so header resolver can find it
     register("ui.sidebar.MeetingNotes.add_callback", _meeting_add)
 
@@ -291,7 +328,7 @@ def build(page: Page):
         divider_color=Colors.AMBER,
         controls=[
             ExpansionPanel(
-                header=create_panel_header("Meeting Notes", page, enabled=enabled, add_callback=_meeting_add),
+                header=create_panel_header("Meeting Notes", page, enabled=enabled, add_callback=_meeting_add, delete_callback=_meeting_delete),
                 content=Container(
                     content=Column([
                         meeting_list
