@@ -40,4 +40,5 @@ Commit
 Saved by: local developer session (automated agent edits).
 
 User testing
-- Delete meeting notes: tested by user on 2025-09-23; confirmed working before commit.
+Delete meeting notes: tested by user on 2025-09-23; confirmed working before commit.
+Header rename (Edit/pencil): tested by user on 2025-09-23; confirmed working before commit.

@@ -319,6 +319,68 @@ def build(page: Page):
         except Exception as ex:
             print("_meeting_delete error:", ex)
 
+    # Edit (rename) handler for meeting notes - opens a small input dialog
+    from flet import AlertDialog, TextField, ElevatedButton, Row
+
+    def _meeting_edit(e):
+        try:
+            # find selected item
+            sel = None
+            for c in meeting_list.controls:
+                if getattr(c, "_is_selected", False):
+                    sel = c
+                    break
+            if not sel:
+                # no selection - inform the user with a small dialog
+                dlg = AlertDialog(title=Text("Rename"), content=Text("Please select a meeting note first."), actions=[ElevatedButton("OK", on_click=lambda ev: (page.close(dlg), page.update()))])
+                page.open(dlg)
+                return
+
+            initial = getattr(sel, "note_data", {}).get("title", "")
+
+            name_field = TextField(value=initial, width=260, autofocus=True)
+            ok_btn = ElevatedButton("OK", disabled=not (initial and len(initial.strip()) >= 5))
+            cancel_btn = ElevatedButton("Cancel", on_click=lambda ev: (page.close(rename_dlg), page.update()))
+
+            def _on_text_change(ev):
+                v = name_field.value or ""
+                ok_btn.disabled = not (len(v.strip()) >= 5 and len(v.strip()) <= 25)
+                page.update()
+
+            name_field.on_change = _on_text_change
+
+            def _on_ok(ev):
+                new_title = (name_field.value or "").strip()
+                if not (5 <= len(new_title) <= 25):
+                    return
+                # update the selected tile and its data
+                try:
+                    sel.title = Text(new_title)
+                except Exception:
+                    pass
+                try:
+                    nd = getattr(sel, "note_data", {})
+                    nd["title"] = new_title
+                    sel.note_data = nd
+                except Exception:
+                    pass
+                # if selected, update content view
+                try:
+                    if getattr(sel, "_is_selected", False):
+                        registry.subjects["contentView"].notify(page, [Column(controls=[Text(new_title)])])
+                except Exception:
+                    pass
+
+                page.close(rename_dlg)
+                page.update()
+
+            ok_btn.on_click = _on_ok
+
+            rename_dlg = AlertDialog(title=Text("Rename Meeting Note"), content=Row([name_field]), actions=[cancel_btn, ok_btn])
+            page.open(rename_dlg)
+        except Exception as ex:
+            print("_meeting_edit error:", ex)
+
     # Register the add callback so header resolver can find it
     register("ui.sidebar.MeetingNotes.add_callback", _meeting_add)
 
@@ -328,7 +390,7 @@ def build(page: Page):
         divider_color=Colors.AMBER,
         controls=[
             ExpansionPanel(
-                header=create_panel_header("Meeting Notes", page, enabled=enabled, add_callback=_meeting_add, delete_callback=_meeting_delete),
+                header=create_panel_header("Meeting Notes", page, enabled=enabled, add_callback=_meeting_add, edit_callback=_meeting_edit, delete_callback=_meeting_delete),
                 content=Container(
                     content=Column([
                         meeting_list

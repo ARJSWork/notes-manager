@@ -2,7 +2,8 @@ TODO for Notes Manager
 Last updated: 2025-09-08
 
 High priority
-- [ ] Implement Edit action for Meeting Notes (open dialog prefilled, save changes).
+- [x] Implement header Edit (rename) for Meeting Notes (open small dialog, validate, save title).  # Done
+- [ ] Implement floating Edit button for full note edit (toggle display/edit mode in main area).  # Pending
 - [ ] Implement Delete action for Meeting Notes (confirm and remove from list and storage).
 - [ ] Persist notes to storage (save/load NotesCollection) and wire menu Save/Open.
 
