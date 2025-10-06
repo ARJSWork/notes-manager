@@ -51,4 +51,5 @@ class NotesCollection:
     tags: List[str] = field(default_factory=lambda: list(DEFAULT_TAGS))
     modules: List[Module] = field(default_factory=lambda: [Module(name=name) for name in DEFAULT_MODULES])
     templates: List[Template] = field(default_factory=lambda: [Template(name=t_name, modules=[Module(name=m_name, content=DEFAULT_TEMPLATES[t_name].get(m_name, [])) for m_name in DEFAULT_TEMPLATES[t_name]["modules"]]) for t_name in DEFAULT_TEMPLATES])
+    locations: List[str] = field(default_factory=lambda: ["Online", "Office", "Conference Room"])
 

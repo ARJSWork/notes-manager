@@ -26,7 +26,11 @@ Registry keys of interest
 
 How to reproduce (manual)
 1. Ensure Flet is installed and venv activated.
-2. Run the app: `python -m src` (or the project's launcher).\n3. File → New (or Open) to enable sidebar.\n4. In Sidebar → Meeting Notes → Add.\n5. In dialog, choose template/date and click OK.\n6. New note should appear in Meeting Notes list, be selected, and main content shows template text.
+2. Run the app: `python -m src` (or the project's launcher).
+3. File → New (or Open) to enable sidebar.
+4. In Sidebar → Meeting Notes → Add.
+5. In dialog, choose template/date and click OK.
+6. New note should appear in Meeting Notes list, be selected, and main content shows template text.
 
 Notes / gotchas
 - The agent could not run Flet in the editing environment; all runtime verification was done by you locally. Keep Flet updated if you see API mismatches.
@@ -42,3 +46,26 @@ Saved by: local developer session (automated agent edits).
 User testing
 Delete meeting notes: tested by user on 2025-09-23; confirmed working before commit.
 Header rename (Edit/pencil): tested by user on 2025-09-23; confirmed working before commit.
+
+---
+
+Saved: 2025-09-25
+
+Summary of recent work
+- Refactored the main content view (`src/ui/panels/note_view.py`) to support a detailed edit mode.
+- Edit mode now provides individual fields for each note module (Topic, Date, Time, etc.).
+- Implemented auto-population of Date and Time for new notes.
+- Replaced the static "Location" text field with an editable `Dropdown`.
+- To support the dropdown, the data model was extended (`src/models/notes.py`) to include a persistent `locations` list in the `NotesCollection`.
+- The application's core logic (`src/logic/ui/menu.py`) was updated to correctly load and create `NotesCollection` objects, storing them in `registry.notes_collection`.
+
+Files changed (important)
+- src/ui/panels/note_view.py (main implementation of edit/display views)
+- src/models/notes.py (added `locations` to `NotesCollection`)
+- src/logic/ui/menu.py (fixed data loading and creation)
+
+Outstanding Bug
+- A persistent bug exists where a custom value typed into the editable "Location" `Dropdown` (e.g., "Office Leipzig") is not correctly saved. Upon saving, the value reverts to a pre-existing option or is lost. The root cause is suspected to be in how the Flet `Dropdown` control's `.value` property is updated and read, especially when the typed text does not exactly match an existing option.
+
+Registry keys of interest
+- registry.notes_collection (The loaded `NotesCollection` object)

@@ -200,6 +200,21 @@ def build(page: Page):
             lt = ListTile(title=Text(title), selected=False)
             # attach the note data so click handler can show content
             try:
+                # Generate initial body from template
+                tmpl = data.get("template")
+                if tmpl and tmpl in DEFAULT_TEMPLATES:
+                    t = DEFAULT_TEMPLATES[tmpl]
+                    mods = t.get("modules", [])
+                    body_lines = []
+                    for m in mods:
+                        body_lines.append(f"## {m}")
+                        lines = t.get(m, []) if isinstance(t.get(m, []), list) else []
+                        for ln in lines:
+                            body_lines.append(ln)
+                    data["body"] = "\n".join(body_lines)
+                else:
+                    data["body"] = ""
+
                 lt.note_data = data
             except Exception:
                 pass

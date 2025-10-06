@@ -8,7 +8,8 @@
 # imports
 from enum import Enum
 from flet import ControlEvent, Page, Icon, Colors, Text
-from db import register, registry #, create_default_collection, save_notes_collection, load_notes_collection
+from db import register, registry
+from db.handler import create_default_collection, load_notes_collection
 from db.messages import getError
 from logic.ui import ContentAction, NoteState
 from logic.ui.window import updateWindowState, updateWindowTitle
@@ -160,6 +161,8 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
 
         case MenuState.OPENED:
             print("Menu is opened")
+            collection = load_notes_collection(registry.notesFile)
+            register("notes_collection", collection)
             registry.ui.menu.file.new.disabled = True
             registry.ui.menu.file.open.disabled = True
             registry.ui.menu.file.save.disabled = False
@@ -278,6 +281,8 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
 
         case MenuState.NEW:
             print("Menu is new")
+            collection = create_default_collection(registry.notesName)
+            register("notes_collection", collection)
             registry.ui.menu.file.new.disabled = True
             registry.ui.menu.file.open.disabled = True
             registry.ui.menu.file.save.disabled = False
