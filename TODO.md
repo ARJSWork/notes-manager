@@ -2,7 +2,7 @@ TODO for Notes Manager
 Last updated: 2025-09-25
 
 High priority
-- [ ] **Investigate and Fix Location Dropdown Bug:** A custom value typed into the editable "Location" dropdown in the note edit view is lost upon saving. The value appears to revert to a pre-existing option. This likely requires debugging the `.value` property of the Flet `Dropdown` control at the point of save in `src/ui/panels/note_view.py`.
+- [x] **Investigate and Fix Location Dropdown Bug:** A custom value typed into the editable "Location" dropdown in the note edit view is lost upon saving. The value appears to revert to a pre-existing option. This likely requires debugging the `.value` property of the Flet `Dropdown` control at the point of save in `src/ui/panels/note_view.py`.
 - [ ] Implement Delete action for Meeting Notes (confirm and remove from list and storage).
 - [ ] Persist notes to storage (save/load NotesCollection) and wire menu Save/Open.
 

@@ -5,10 +5,12 @@
 ###
 
 from datetime import datetime
-from flet import Column, Text, Row, Colors, Divider, Container, TextField, ElevatedButton, IconButton, Icons, Dropdown, dropdown
+from flet import Column, Text, Row, Colors, Divider, Container, TextField, ElevatedButton, IconButton, Icons
 from db import registry
+from db.handler import save_notes_collection
 from logic.log import info
-from models.notes import DEFAULT_TEMPLATES, DEFAULT_MODULES
+from models.notes import DEFAULT_MODULES
+from ui.controls.custom_menu import CustomMenu
 
 
 def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> Column:
@@ -26,7 +28,7 @@ def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> C
     editing = bool(note_data.get("_editing", False))
 
     header = _build_header(page, note_data, title_fallback, editing)
-    content = _build_content(note_data, editing)
+    content = _build_content(page, note_data, editing)
 
     return Column(controls=[header, Divider(), content], expand=True)
 
@@ -57,10 +59,10 @@ def _build_header(page, note_data: dict, title_fallback: str, editing: bool) -> 
 
     return Row(controls=header_content, alignment="spaceBetween")
 
-def _build_content(note_data: dict, editing: bool) -> Column:
+def _build_content(page, note_data: dict, editing: bool) -> Column:
     """Builds the content section of the note view."""
     if editing:
-        return _build_edit_view(note_data)
+        return _build_edit_view(page, note_data)
     return _build_display_view(note_data)
 
 
@@ -109,7 +111,7 @@ def _build_display_view(note_data: dict) -> Column:
     return Column(controls=controls, expand=True, spacing=10)
 
 
-def _build_edit_view(note_data: dict) -> Column:
+def _build_edit_view(page, note_data: dict) -> Column:
     """Builds the edit view for the note content."""
     
     body = note_data.get("body", "") or ""
@@ -125,14 +127,12 @@ def _build_edit_view(note_data: dict) -> Column:
     topic_tf = TextField(label="Topic", value=parsed_body.get("Topic", ""), max_length=50, expand=True)
     date_tf = TextField(label="Date", value=parsed_body.get("Date", ""), max_length=10, width=120)
     time_tf = TextField(label="Time", value=parsed_body.get("Time", ""), max_length=5, width=80)
-    location_dd = Dropdown(
-        label="Location",
-        value=parsed_body.get("Location") or "Online",
-        options=[
-            dropdown.Option(loc) for loc in (registry.notes_collection.locations if hasattr(registry, "notes_collection") and registry.notes_collection else ["Online", "Office", "Conference Room"])
-        ],
-        editable=True,
-        expand=True,
+    
+    locations = registry.notes_collection.locations if hasattr(registry, "notes_collection") and registry.notes_collection else ["Online", "Office", "Conference Room"]
+    location_menu = CustomMenu(
+        page,
+        items=locations,
+        selected_item=parsed_body.get("Location") or "Online",
     )
 
     participants_tf = TextField(label="Participants", value=parsed_body.get("Participants", ""), multiline=True, min_lines=3, max_lines=10)
@@ -143,7 +143,7 @@ def _build_edit_view(note_data: dict) -> Column:
         "Topic": topic_tf,
         "Date": date_tf,
         "Time": time_tf,
-        "Location": location_dd,
+        "Location": location_menu,
         "Participants": participants_tf,
         "Notes": notes_tf,
     }
@@ -156,7 +156,7 @@ def _build_edit_view(note_data: dict) -> Column:
                 controls=[
                     date_tf,
                     time_tf,
-                    location_dd,
+                    location_menu,
                 ]
             ),
             participants_tf,
@@ -200,13 +200,21 @@ def _on_save(ev, page, note_data, title_fallback):
         for module_name in DEFAULT_MODULES:
             if module_name in textfields:
                 control = textfields[module_name]
-                value = control.value or ""
+                value = ""
 
-                # For Location, update the global list if a new value is added
-                if module_name == "Location" and value:
-                    if hasattr(registry, "notes_collection") and registry.notes_collection:
-                        if value not in registry.notes_collection.locations:
-                            registry.notes_collection.locations.append(value)
+                if module_name == "Location":
+                    # CustomMenu has a different way of getting values
+                    items, selected_item = control.get_values()
+                    value = selected_item
+                    
+                    # Update global locations list and save if changed
+                    if items != registry.notes_collection.locations:
+                        registry.notes_collection.locations = items
+                        registry.notes_collection.locations.sort()
+                        if hasattr(registry, "notesFile") and registry.notesFile:
+                            save_notes_collection(registry.notes_collection, registry.notesFile)
+                else:
+                    value = control.value or ""
                 
                 if value:
                     new_body.append(f"## {module_name}")

@@ -69,3 +69,6 @@ Outstanding Bug
 
 Registry keys of interest
 - registry.notes_collection (The loaded `NotesCollection` object)
+
+Notes / gotchas
+- Always use `ft.Icons` and `ft.Colors` (uppercase) instead of `ft.icons` and `ft.colors` (lowercase) to align with the latest Flet API.
