@@ -28,6 +28,8 @@ def layout(page_:Page) -> list:
         if not _col2:
             return
 
+        _cont2.alignment = alignment.top_center
+        _cont2.update()
         _col2.controls.clear()
         _col2.controls.extend(items_)
         _col2.update()
@@ -60,13 +62,6 @@ def layout(page_:Page) -> list:
         alignment=alignment.center,
         expand=True,
     )
-    # _col2 = Column(
-    #     controls=[
-    #         Text("Choose a Notes with 'File Menu'...", size=16, color=Colors.WHITE),
-    #     ],
-    #     alignment=MainAxisAlignment.CENTER,
-    #     expand=True,
-    # )
     _cont2 = Container(
         alignment=alignment.center,
         border=_border,

@@ -16,6 +16,7 @@ from flet import (
     IconButton,
     Icons,
     Colors,
+    ListTile, 
     alignment
 )
 from flet import RadioGroup, Radio
@@ -134,10 +135,11 @@ def build(page: Page):
         def _cb(p, data):
             print("sidebar: meeting_cb received", data)
             if not data:
+                print("sidebar: no data received", data)
                 return
+
             title = data.get("title") or "New Note"
             # append as a selectable ListTile and register selection
-            from flet import ListTile, Column
             def _on_click(e, item=None):
                 # Deselect if already selected
                 if getattr(item, "_is_selected", False):
@@ -185,6 +187,47 @@ def build(page: Page):
                 # Update main content for this note using centralized renderer
                 try:
                     nd = getattr(item, "note_data", None) or {}
+                    # Ensure the note_data has an attached MeetingNote object so
+                    # edits can sync back to the model. If not present, try to
+                    # reconstruct one from the metadata and add to the in-memory
+                    # collection (best-effort).
+                    try:
+                        if not nd.get('_note_obj') and hasattr(registry, 'notes_collection') and registry.notes_collection is not None:
+                            from models.notes import MeetingNote
+                            # Avoid creating duplicates: look for an existing note with same title+date
+                            existing = None
+                            for n in registry.notes_collection.notes:
+                                if getattr(n, 'title', None) == nd.get('title') and getattr(n, 'date', None) == nd.get('date'):
+                                    existing = n
+                                    break
+                            if existing:
+                                nd['_note_obj'] = existing
+                            else:
+                                parts = nd.get('participants') or ""
+                                if isinstance(parts, list):
+                                    plist = parts
+                                else:
+                                    plist = [p.strip() for p in str(parts).splitlines() if p.strip()]
+
+                                note_obj = MeetingNote(
+                                    title=nd.get('title') or title,
+                                    category=nd.get('category', ''),
+                                    tags=nd.get('tags', []) or [],
+                                    content=nd.get('body') or nd.get('content') or "",
+                                    topic=nd.get('topic') or "Meeting Note",
+                                    date=nd.get('date'),
+                                    time=nd.get('time'),
+                                    location=nd.get('location'),
+                                    participants=plist,
+                                    notes=nd.get('notes') or "",
+                                    todos=nd.get('todos') or [],
+                                    created_at=nd.get('created_at')
+                                )
+                                registry.notes_collection.notes.append(note_obj)
+                                nd['_note_obj'] = note_obj
+                    except Exception:
+                        pass
+
                     col = build_note_view(p, nd, title_fallback=title)
                     try:
                         registry.subjects["contentView"].notify(p, [col])
@@ -197,37 +240,11 @@ def build(page: Page):
                 except Exception:
                     pass
 
+            # Create the ListTile and append
             lt = ListTile(title=Text(title), selected=False)
-            # attach the note data so click handler can show content
-            try:
-                # Generate initial body from template
-                tmpl = data.get("template")
-                if tmpl and tmpl in DEFAULT_TEMPLATES:
-                    t = DEFAULT_TEMPLATES[tmpl]
-                    mods = t.get("modules", [])
-                    body_lines = []
-                    for m in mods:
-                        body_lines.append(f"## {m}")
-                        lines = t.get(m, []) if isinstance(t.get(m, []), list) else []
-                        for ln in lines:
-                            body_lines.append(ln)
-                    data["body"] = "\n".join(body_lines)
-                else:
-                    data["body"] = ""
-
-                lt.note_data = data
-            except Exception:
-                pass
-            # manage selection with our own flag to avoid timing/race with flet
-            try:
-                lt._is_selected = False
-            except Exception:
-                pass
-            # bind click with correct item reference
-            try:
-                lt.on_click = lambda e, item=lt: _on_click(e, item=item)
-            except Exception:
-                lt.on_click = None
+            lt.note_data = data
+            lt._is_selected = False
+            lt.on_click = lambda e, item=lt: _on_click(e, item=item)
             meeting_list.controls.append(lt)
             # Auto-select the newly created item
             try:
@@ -239,44 +256,35 @@ def build(page: Page):
                         pass
                 lt._is_selected = True
                 lt.selected = True
-            except Exception:
-                pass
-            # Publish template content to main content view
-            try:
-                tmpl = data.get("template")
-                content_controls = []
-                if tmpl and tmpl in DEFAULT_TEMPLATES:
-                    # flatten template modules into text lines
-                    t = DEFAULT_TEMPLATES[tmpl]
-                    mods = t.get("modules", [])
-                    for m in mods:
-                        lines = t.get(m, []) if isinstance(t.get(m, []), list) else []
-                        content_controls.append(Text(f"## {m}"))
-                        for ln in lines:
-                            content_controls.append(Text(ln))
-                else:
-                    content_controls.append(Text(title))
-                try:
-                    # Build the default note view and publish it
-                    nd = data or {}
-                    col = build_note_view(p, nd, title_fallback=title)
-                    try:
-                        registry.subjects["contentView"].notify(p, [col])
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-            except Exception:
-                pass
-            # enable edit/delete
-            try:
+
+                if hasattr(registry, 'notes_collection') and registry.notes_collection is not None:
+                    from models.notes import MeetingNote
+                    note_obj = MeetingNote(
+                        title=data.get('title', ''),
+                        category=data.get('category', ''),
+                        tags=data.get('tags', []) or [],
+                        content=data.get('body', '') or "",
+                        topic=data.get('topic') or "Meeting Note",
+                        date=data.get('date'),
+                        time=data.get('time'),
+                        location=data.get('location'),
+                        participants=[p.strip() for p in (data.get('participants') or "").splitlines() if p.strip()] if data.get('participants') else [],
+                        notes=data.get('notes') or "",
+                        todos=[t for t in ((data.get('notes') or "").splitlines()) if t.strip().startswith('[') or t.strip().startswith('- [')],
+                        created_at=(f"{data.get('date')} {data.get('time')}" if data.get('date') and data.get('time') else data.get('date')),
+                        updated_at=(f"{data.get('date')} {data.get('time')}" if data.get('date') and data.get('time') else data.get('date'))
+                    )
+                    registry.notes_collection.notes.append(note_obj)
+                    data['_note_obj'] = note_obj
+
+                # Build the default note view and publish it
+                col = build_note_view(p, data or {}, title_fallback=title)
+                registry.subjects["contentView"].notify(p, [col])
                 registry.ui.sidebar.MeetingNotes.edit.disabled = False
                 registry.ui.sidebar.MeetingNotes.delete.disabled = False
-            except Exception:
-                pass
-            try:
                 page_ref.update()
-            except Exception:
+            except Exception as _e:
+                print("sidebar: meeting_add auto-select error", _e)
                 pass
 
         # Call the meeting notes dialog (no test dialog / fallback) so the
@@ -284,10 +292,7 @@ def build(page: Page):
         try:
             print("sidebar: calling meeting_notes.show")
             meeting_notes.show(page_ref, _cb)
-            try:
-                page_ref.window.to_front()
-            except Exception:
-                pass
+            page_ref.window.to_front()
             print("sidebar: meeting_notes.show returned")
         except Exception as ex:
             print("sidebar: meeting_notes.show error:", ex)

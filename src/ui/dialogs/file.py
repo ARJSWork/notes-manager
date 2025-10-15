@@ -103,3 +103,30 @@ def showSave(page: Page, callback:callable, state:str=None, overrides_:dict=None
         initial_directory=start_directory,
         file_name=_filename
     )
+
+def showOpenCollection(page: Page, callback:callable, state:str=None) -> None:
+    """Open a directory selection dialog for collections."""
+
+    def get_directory_result(e: FilePickerResultEvent) -> None:
+        if not e.path:
+            return
+        
+        _path = e.path
+        register("notesFile", _path)
+        register("notesName", path.basename(_path))
+        if callback:
+            callback(page, state)
+
+    # Definiere das Startverzeichnis
+    # Default to top-level notes folder (next to src)
+    start_directory = path.join(getcwd(), "notes")
+    
+    # Öffne den Dateidialog
+    _dialog = FilePicker(on_result=get_directory_result)
+    page.overlay.append(_dialog)
+    page.update()
+
+    _dialog.get_directory_path(
+        dialog_title="Select a notes collection folder",
+        initial_directory=start_directory,
+    )

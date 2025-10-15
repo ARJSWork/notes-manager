@@ -8,7 +8,9 @@
 # imports
 from enum import Enum
 from flet import ControlEvent, Page, Icon, Colors, Text
+from config.config import DATA_ROOT
 from db import register, registry
+from logic.persistence import save_collection
 from db.handler import create_default_collection, load_notes_collection
 from db.messages import getError
 from logic.ui import ContentAction, NoteState
@@ -109,7 +111,7 @@ def open_callback(event:str, e:ControlEvent) -> None:
     print(f"{_element.value}.on_click")
 
     # Rufe den Open File Dialog auf
-    fileDialog.showOpen(e.page, setMenuState, MenuState.OPENED)
+    fileDialog.showOpenCollection(e.page, setMenuState, MenuState.OPENED)
 
 
 def save_callback(event:str, e: ControlEvent) -> None:
@@ -268,15 +270,36 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
                 pass
 
         case MenuState.SAVED:
+            if registry.notes_collection:
+                success, msg = save_collection(registry.notes_collection, DATA_ROOT)
+                if success:
+                    registry.changed = False
+                    updateWindowTitle(page, registry.notesName)
+                    updateWindowState(page, registry.changed)
+                    try:
+                        # update status bar if present
+                        if hasattr(registry, 'ui') and getattr(registry.ui, 'status', None):
+                            registry.ui.status.current.value = "Save succeeded"
+                            registry.ui.status.current.update()
+                    except Exception:
+                        pass
+                    print(msg)
+                else:
+                    try:
+                        if hasattr(registry, 'ui') and getattr(registry.ui, 'status', None):
+                            registry.ui.status.current.value = f"Save failed: {msg}"
+                            registry.ui.status.current.update()
+                    except Exception:
+                        pass
+                    print(f"Save failed: {msg}")
+            else:
+                print("Error: No collection loaded to save.")
+            
+            # Re-enable menu items
             registry.ui.menu.file.new.disabled = True
             registry.ui.menu.file.open.disabled = True
             registry.ui.menu.file.save.disabled = False
             registry.ui.menu.file.close.disabled = False
-            registry.changed = False
-            #save_notes_collection(registry.note, registry.notesFile)
-            updateWindowTitle(page, registry.notesName)
-            updateWindowState(page, registry.changed)
-            print("Menu is saved")
             page.window.to_front()
 
         case MenuState.NEW:

@@ -6,7 +6,10 @@
 
 
 # imports
+import os
 from os import path
+from os import getcwd
+import os as _os
 from flet import Colors, Page, Text, ElevatedButton, AlertDialog, TextField, Row, Dropdown, dropdown
 from db import register, registry, DEFAULT_NOTES_PATH
 
@@ -20,6 +23,7 @@ from db import register, registry, DEFAULT_NOTES_PATH
 # functions/classes
 def show(page: Page, callback:callable, state:str=None) -> str:
     """Show a note dialog."""
+    _button = None
 
     def on_ok_click(e):
         """Callback for the Ok button."""
@@ -28,12 +32,13 @@ def show(page: Page, callback:callable, state:str=None) -> str:
         page.update()
         if not note_name_field.value.strip():
             return
-        
-        _path = path.join(DEFAULT_NOTES_PATH, f"{note_name_field.value.lower()}.json")
-        # TODO: Check if the file already exists and display a warning dialog
-        # TODO: Save the note file
+
+        # Register the collection folder under top-level notes/<slug>
+        slug = note_name_field.value.strip().replace(' ', '_')
+        _path = path.join(getcwd(), "notes", slug)
+        _os.makedirs(_path, exist_ok=True)
         register("notesFile", _path)
-        register("notesName", note_name_field.value)
+        register("notesName", note_name_field.value.strip())
         if callback:
             callback(page, state)
 
@@ -55,9 +60,26 @@ def show(page: Page, callback:callable, state:str=None) -> str:
 
         page.update()
 
-    note_name_field = TextField(label="Notes Name", width=260, autofocus=True, on_change=on_text_change)
-    ok_button = ElevatedButton("Ok", on_click=on_ok_click, disabled=True)
-    cancel_button = ElevatedButton("Cancel", on_click=on_cancel_click)
+    def on_focus(e):
+        nonlocal _button
+        if _button:
+            _button.bgcolor=None
+            _button.color=None
+        
+        e.control.bgcolor=Colors.GREEN
+        e.control.color=Colors.WHITE
+        page.update()
+
+        _button = e.control
+
+    def on_submit(e):
+        if not ok_button.disabled:
+            on_ok_click(e)
+
+    note_name_field = TextField(label="Notes Name", width=260, autofocus=True, on_change=on_text_change, on_submit=on_submit)
+    ok_button = ElevatedButton("Ok", on_click=on_ok_click, on_focus=on_focus, disabled=True)
+    cancel_button = ElevatedButton("Cancel", on_click=on_cancel_click, on_focus=on_focus)
+    _button = ok_button
 
     note_dialog = AlertDialog(
         title=Text("Enter Notes Name"),

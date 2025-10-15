@@ -4,13 +4,17 @@
 # Author: automated-refactor
 ###
 
-from datetime import datetime
-from flet import Column, Text, Row, Colors, Divider, Container, TextField, ElevatedButton, IconButton, Icons
+from flet import (
+    Column, Text, Row, Colors, Divider, Container, TextField, 
+    ScrollMode, ElevatedButton, IconButton, Icons, VerticalAlignment, MainAxisAlignment
+    )
 from db import registry
 from db.handler import save_notes_collection
 from logic.log import info
 from models.notes import DEFAULT_MODULES
 from ui.controls.custom_menu import CustomMenu
+import re
+from datetime import datetime
 
 
 def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> Column:
@@ -30,27 +34,34 @@ def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> C
     header = _build_header(page, note_data, title_fallback, editing)
     content = _build_content(page, note_data, editing)
 
-    return Column(controls=[header, Divider(), content], expand=True)
+    return Column(
+        controls=[header, Divider(), content], expand=True,
+        scroll=ScrollMode.AUTO,auto_scroll=True, 
+        #alignment=MainAxisAlignment.START, horizontal_alignment=VerticalAlignment.START
+        )
 
 def _build_header(page, note_data: dict, title_fallback: str, editing: bool) -> Row:
     """Builds the header section of the note view."""
     title = note_data.get("title") or title_fallback or "Untitled"
     date = note_data.get("date")
+    time = note_data.get("time")
     tmpl_name = note_data.get("template")
 
     meta_parts = []
     if date:
-        meta_parts.append(str(date))
+        meta_parts.append(f"Created: {date} / {time}")
+
     if tmpl_name:
-        meta_parts.append(str(tmpl_name))
-    meta = " • ".join(meta_parts)
+        meta_parts.append(f"Template: {tmpl_name}")
+
+    meta = "  •  ".join(meta_parts)
 
     header_content = [Column(controls=[Text(title, size=20), Text(meta, size=12, color=Colors.WHITE70)])]
 
     if editing:
         header_content.append(Row(controls=[
-            ElevatedButton("Save", on_click=lambda ev: _on_save(ev, page, note_data, title_fallback)),
-            ElevatedButton("Cancel", on_click=lambda ev: _on_cancel(ev, page, note_data, title_fallback))
+            ElevatedButton("Cancel", on_click=lambda ev: _on_cancel(ev, page, note_data, title_fallback)),
+            ElevatedButton("Save", bgcolor=Colors.GREEN, color=Colors.WHITE, on_click=lambda ev: _on_save(ev, page, note_data, title_fallback))
         ]))
     else:
         header_content.append(
@@ -63,28 +74,25 @@ def _build_content(page, note_data: dict, editing: bool) -> Column:
     """Builds the content section of the note view."""
     if editing:
         return _build_edit_view(page, note_data)
-    return _build_display_view(note_data)
-
+    else:
+        return _build_display_view(note_data)
 
 def _build_display_view(note_data: dict) -> Column:
     """Builds the display view for the note content."""
-    body = note_data.get("body")
-    if not body:
-        return Column(controls=[Text("(No content) — click Edit to add details.", color=Colors.WHITE70)])
-
-    parsed_body = _parse_note_body(body)
     controls = []
 
     # Row for Date, Time, Location
-    date_val = parsed_body.get("Date", "")
-    time_val = parsed_body.get("Time", "")
-    location_val = parsed_body.get("Location", "")
+    date_val = note_data.get("date", "")
+    time_val = note_data.get("time", "")
+    location_val = note_data.get("location", "")
 
     meta_controls = []
     if date_val:
         meta_controls.append(Text(f"Date: {date_val}"))
+    
     if time_val:
         meta_controls.append(Text(f"Time: {time_val}"))
+
     if location_val:
         meta_controls.append(Text(f"Location: {location_val}"))
     
@@ -92,60 +100,83 @@ def _build_display_view(note_data: dict) -> Column:
         controls.append(Row(controls=meta_controls, spacing=20))
 
     # Topic
-    topic_val = parsed_body.get("Topic", "")
+    topic_val = note_data.get("topic", "")
     if topic_val:
-        controls.append(Text(topic_val, size=20, weight="bold"))
+        controls.append(Text(f"Topic: {topic_val}", size=20, weight="bold"))
+        #controls.append(Text(topic_val, size=20, weight="bold"))
 
     # Participants
-    participants_val = parsed_body.get("Participants", "")
+    participants_val = note_data.get("participants", "")
     if participants_val:
+        controls.append(Divider())
         controls.append(Text("Participants", size=16, weight="bold"))
-        controls.append(Text(participants_val))
+
+        # Allow participants to be stored as a string or a list/tuple.
+        if isinstance(participants_val, (list, tuple)):
+            participants_text = ", ".join(str(p) for p in participants_val)
+        elif isinstance(participants_val, dict):
+            participants_text = ", ".join(f"{k}: {v}" for k, v in participants_val.items())
+        else:
+            participants_text = str(participants_val)
+
+        controls.append(Text(participants_text))
 
     # Notes
-    notes_val = parsed_body.get("Notes", "")
+    notes_val = note_data.get("notes", "")
     if notes_val:
+        controls.append(Divider())
         controls.append(Text("Notes", size=16, weight="bold"))
-        controls.append(Container(content=Text(notes_val), expand=True))
+        controls.append(Container(content=Text(notes_val), expand=False))
 
-    return Column(controls=controls, expand=True, spacing=10)
+    # ToDos
+    todos_val = note_data.get("todos", "")
+    if todos_val:
+        controls.append(Divider())
+        controls.append(Text("To Do's", size=16, weight="bold"))
+        controls.append(Container(content=Text(todos_val), expand=True))
 
+    return Column(
+        controls=controls, expand=True, spacing=10, auto_scroll=True, scroll=ScrollMode.AUTO,
+        alignment=MainAxisAlignment.START, horizontal_alignment=VerticalAlignment.START
+        )
 
 def _build_edit_view(page, note_data: dict) -> Column:
     """Builds the edit view for the note content."""
     
-    body = note_data.get("body", "") or ""
-    parsed_body = _parse_note_body(body)
-
-    # Pre-fill date and time for new notes
-    if not parsed_body.get("Date"):
-        parsed_body["Date"] = datetime.now().strftime("%d.%m.%Y")
-    if not parsed_body.get("Time"):
-        parsed_body["Time"] = datetime.now().strftime("%H:%M")
-
     # Create TextFields for each module
-    topic_tf = TextField(label="Topic", value=parsed_body.get("Topic", ""), max_length=50, expand=True)
-    date_tf = TextField(label="Date", value=parsed_body.get("Date", ""), max_length=10, width=120)
-    time_tf = TextField(label="Time", value=parsed_body.get("Time", ""), max_length=5, width=80)
+    topic_tf = TextField(label="Topic", value=note_data.get("topic", ""), max_length=50, expand=True)
+    date_tf = TextField(label="Date", value=note_data.get("date", ""), max_length=10, width=120)
+    time_tf = TextField(label="Time", value=note_data.get("time", ""), max_length=5, width=80)
     
     locations = registry.notes_collection.locations if hasattr(registry, "notes_collection") and registry.notes_collection else ["Online", "Office", "Conference Room"]
     location_menu = CustomMenu(
         page,
         items=locations,
-        selected_item=parsed_body.get("Location") or "Online",
+        selected_item=note_data.get("location") or "Online",
     )
 
-    participants_tf = TextField(label="Participants", value=parsed_body.get("Participants", ""), multiline=True, min_lines=3, max_lines=10)
-    notes_tf = TextField(label="Notes", value=parsed_body.get("Notes", ""), multiline=True, expand=True)
+    # Normalize participants into a comma-separated string for the TextField.
+    _participants_raw = note_data.get("participants", "")
+    if isinstance(_participants_raw, (list, tuple)):
+        participants_value = ", ".join(str(p) for p in _participants_raw)
+    elif isinstance(_participants_raw, dict):
+        participants_value = ", ".join(f"{k}: {v}" for k, v in _participants_raw.items())
+    else:
+        participants_value = str(_participants_raw or "")
+
+    participants_tf = TextField(label="Participants", value=participants_value, multiline=True, min_lines=3, max_lines=10)
+    notes_tf = TextField(label="Notes", value=note_data.get("notes", ""), multiline=True, expand=True)
+    todos_tf = TextField(label="To Do's", value=note_data.get("todos", ""), multiline=True, expand=True)
 
     # Store references for saving
-    note_data["_textfields"] = {
+    note_data["_controls"] = {
         "Topic": topic_tf,
         "Date": date_tf,
         "Time": time_tf,
         "Location": location_menu,
         "Participants": participants_tf,
         "Notes": notes_tf,
+        "ToDos": todos_tf,
     }
 
     # Layout the fields
@@ -160,71 +191,107 @@ def _build_edit_view(page, note_data: dict) -> Column:
                 ]
             ),
             participants_tf,
-            Container(content=notes_tf, expand=True), # Ensure Notes field expands
+            Container(content=notes_tf, expand=False), # Ensure Notes field expands
+            Container(content=todos_tf, expand=False), # Ensure Notes field expands
         ],
         expand=True
     )
 
-def _parse_note_body(body: str) -> dict:
-    """Parses a note body string into a dictionary of modules."""
-    modules = {}
-    current_module = None
-    content = []
-
-    for line in body.splitlines():
-        if line.startswith("## "):
-            if current_module:
-                modules[current_module] = "\n".join(content).strip()
-            current_module = line[3:].strip()
-            content = []
-        else:
-            content.append(line)
-    
-    if current_module:
-        modules[current_module] = "\n".join(content).strip()
-
-    return modules
-
-
 def _enter_edit(ev, page, note_data, title_fallback):
     info("Entering edit mode")
+    # Debug: show current payload and attached model before entering edit mode
+    try:
+        print(f"[DEBUG] _enter_edit note_data: title={note_data.get('title')!r}, date={note_data.get('date')!r}, template={note_data.get('template')!r}, body_present={bool(note_data.get('body'))}")
+        if note_data.get('_note_obj') is not None:
+            no = note_data.get('_note_obj')
+            print("[DEBUG] _enter_edit _note_obj:",
+                  f"title={getattr(no,'title',None)!r}, topic={getattr(no,'topic',None)!r}, date={getattr(no,'date',None)!r}, time={getattr(no,'time',None)!r}, location={getattr(no,'location',None)!r}, participants={getattr(no,'participants',None)!r}, notes={getattr(no,'notes',None)!r}")
+        else:
+            print("[DEBUG] _enter_edit: no attached _note_obj")
+    except Exception as _e:
+        print("[DEBUG] _enter_edit introspect error:", _e)
+
     note_data["_editing"] = True
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
 
 def _on_save(ev, page, note_data, title_fallback):
     info("Saving note")
-    textfields = note_data.get("_textfields")
-    if textfields:
-        new_body = []
-        # Iterate in default order to ensure consistency
-        for module_name in DEFAULT_MODULES:
-            if module_name in textfields:
-                control = textfields[module_name]
-                value = ""
-
-                if module_name == "Location":
-                    # CustomMenu has a different way of getting values
-                    items, selected_item = control.get_values()
-                    value = selected_item
-                    
-                    # Update global locations list and save if changed
-                    if items != registry.notes_collection.locations:
-                        registry.notes_collection.locations = items
-                        registry.notes_collection.locations.sort()
-                        if hasattr(registry, "notesFile") and registry.notesFile:
-                            save_notes_collection(registry.notes_collection, registry.notesFile)
-                else:
-                    value = control.value or ""
-                
-                if value:
-                    new_body.append(f"## {module_name}")
-                    new_body.append(str(value))
-        note_data["body"] = "\n".join(new_body)
+    assert note_data is not None, "note_data is None"
 
     note_data["_editing"] = False
+    _controls = note_data.get("_controls")
+    if _controls:
+        # Simple text fields
+        topic_tf = _controls.get("Topic")
+        note_data["topic"] = (getattr(topic_tf, "value", "") or "").strip()
+
+        date_tf = _controls.get("Date")
+        note_data["date"] = (getattr(date_tf, "value", "") or "").strip()
+
+        time_tf = _controls.get("Time")
+        note_data["time"] = (getattr(time_tf, "value", "") or "").strip()
+
+        # Location: preserve selected custom value and update collection if changed
+        location_menu = _controls.get("Location")
+        try:
+            items, selected = location_menu.get_values()
+        except Exception:
+            # Fallback if API differs: try to read properties directly
+            items = getattr(location_menu, "items", [])
+            selected = getattr(location_menu, "selected_item", None)
+
+        if hasattr(registry, "notes_collection") and registry.notes_collection:
+            if items != registry.notes_collection.locations:
+                registry.notes_collection.locations = items
+                registry.notes_collection.locations.sort()
+                if hasattr(registry, "notesFile") and registry.notesFile:
+                    save_notes_collection(registry.notes_collection, registry.notesFile)
+
+        note_data["location"] = selected or ""
+
+        # Participants: split by comma, semicolon or newline into a list
+        participants_tf = _controls.get("Participants")
+        participants_text = (getattr(participants_tf, "value", "") or "")
+        parts = [p.strip() for p in re.split(r"[,\n;]+", participants_text) if p.strip()]
+        note_data["participants"] = parts
+
+        # Notes and Todos
+        notes_tf = _controls.get("Notes")
+        note_data["notes"] = (getattr(notes_tf, "value", "") or "")
+
+        todos_tf = _controls.get("ToDos")
+        note_data["todos"] = (getattr(todos_tf, "value", "") or "")
+
+        # update timestamp
+        note_data["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+        _no = note_data.get("_note_obj")
+        if _no:
+            print(f"[DEBUG] _on_save: updating attached _note_obj {getattr(_no,'title',None)!r}")
+            # Update the attached MeetingNote object with edited values
+            _no.title = note_data.get("title", title_fallback)
+            _no.topic = note_data.get("topic", "")
+            _no.date = note_data.get("date", "")
+            _no.time = note_data.get("time", "")
+            _no.location = note_data.get("location", "")
+            _no.participants = note_data.get("participants", [])
+            _no.notes = note_data.get("notes", "")
+            _no.todos = note_data.get("todos", [])
+            _no.updated_at = note_data["updated_at"]
+
+            print(f"[DEBUG] _on_save: updated _note_obj to title={getattr(_no,'title',None)!r}, topic={getattr(_no,'topic',None)!r}, date={getattr(_no,'date',None)!r}, time={getattr(_no,'time',None)!r}, location={getattr(_no,'location',None)!r}, participants={getattr(_no,'participants',None)!r}, notes={getattr(_no,'notes',None)!r}, todos={getattr(_no,'todos',None)!r}, updated_at={getattr(_no,'updated_at',None)!r}")
+    else:
+        info("No _controls found in note_data; skipping save of edits")
+        # If no _controls, just exit edit mode without changes
+        return
+
+
+    # Persist changes back to the attached MeetingNote object if available
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
 
 def _on_cancel(ev, page, note_data, title_fallback):
     info("Canceling edit")
     note_data["_editing"] = False
+    note_data.pop("_controls", None)  # Remove references to controls
+    note_data.pop("_editing", None)  # Remove editing flag
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
