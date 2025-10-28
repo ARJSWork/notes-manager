@@ -7,7 +7,7 @@
 import re
 import os
 from flet import (
-    Column, Text, Row, Colors, Divider, Container, TextField, 
+    Checkbox, Column, Text, Row, Colors, Divider, Container, TextField, 
     ScrollMode, ElevatedButton, IconButton, Icons, VerticalAlignment, MainAxisAlignment
     )
 from db import registry
@@ -135,7 +135,19 @@ def _build_display_view(note_data: dict) -> Column:
     if todos_val:
         controls.append(Divider())
         controls.append(Text("To Do's", size=16, weight="bold"))
-        controls.append(Container(content=Text(todos_val), expand=True))
+        
+        todo_items = []
+        if isinstance(todos_val, list):
+            todo_items = todos_val
+        elif isinstance(todos_val, str):
+            todo_items = todos_val.splitlines()
+
+        for todo in todo_items:
+            if todo.strip():
+                checked = '[x]' in todo.lower()
+                # Use regex to strip checkbox markers like '- [ ]' or '- [x]'
+                text = re.sub(r'^\s*-\s*\[[xX\s]?\]\s*', '', todo).strip()
+                controls.append(Checkbox(label=text, value=checked, disabled=True))
 
     return Column(
         controls=controls, expand=True, spacing=10, auto_scroll=True, scroll=ScrollMode.AUTO,
@@ -168,7 +180,10 @@ def _build_edit_view(page, note_data: dict) -> Column:
 
     participants_tf = TextField(label="Participants", value=participants_value, multiline=True, min_lines=3, max_lines=10)
     notes_tf = TextField(label="Notes", value=note_data.get("notes", ""), multiline=True, expand=True)
-    todos_tf = TextField(label="To Do's", value=note_data.get("todos", ""), multiline=True, expand=True)
+    todos_val = note_data.get("todos", "")
+    if isinstance(todos_val, list):
+        todos_val = "\n".join(todos_val)
+    todos_tf = TextField(label="To Do's", value=todos_val, multiline=True, expand=True)
 
     # Store references for saving
     note_data["_controls"] = {
@@ -261,7 +276,8 @@ def _on_save(ev, page, note_data, title_fallback):
         note_data["notes"] = (getattr(notes_tf, "value", "") or "")
 
         todos_tf = _controls.get("ToDos")
-        note_data["todos"] = (getattr(todos_tf, "value", "") or "")
+        todos_text = (getattr(todos_tf, "value", "") or "")
+        note_data["todos"] = [line for line in todos_text.splitlines() if line.strip()]
 
         # update timestamp
         note_data["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")

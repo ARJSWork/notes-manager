@@ -109,6 +109,10 @@ class MeetingNote:
 
         notes = data.get("notes", "") or ""
         todos = data.get("todos", []) or []
+        if isinstance(todos, str):
+            todos = [line.strip() for line in todos.splitlines() if line.strip()]
+        elif not isinstance(todos, list):
+            todos = []
 
         created_at = data.get("created_at")
         updated_at = data.get("updated_at")
