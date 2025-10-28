@@ -10,6 +10,7 @@
 from argparse import ArgumentParser, Namespace
 from db import register
 from ui import app
+import logging
 
 
 # constants
@@ -42,8 +43,7 @@ def parse_arguments():
 
 def main(args_:Namespace) -> None:
     """ Main function """
-
-    print("Hello world! This is Notes Manager!")
+    logging.info("Hello world! This is Notes Manager!")
     register("args", args_)
     register("dirty", False)
     app.run()

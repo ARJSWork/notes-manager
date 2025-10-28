@@ -7,6 +7,7 @@
 
 # imports
 from flet import MenuBar, MenuItemButton, SubmenuButton, Icon, Text, Divider, Row
+import logging
 from flet import alignment, ButtonStyle, Colors, ControlState, MenuStyle, MouseCursor, Icons, RoundedRectangleBorder
 from db import register, registry
 #from logic.pattern.observer import Observable, Observer
@@ -24,7 +25,7 @@ def handle_submenu_hover(e):
     assert(e.control)
     assert(e.control.content)
     
-    print(f"{e.control.content.value}.on_hover")
+    logging.debug(f"{e.control.content.value}.on_hover")
 
 
 def build(**kwargs) -> Row:
@@ -32,7 +33,7 @@ def build(**kwargs) -> Row:
 
     _page = registry.page
     if not _page:
-        print("Error. No page registered")
+        logging.error("Error. No page registered")
         return None
 
     # _style=ButtonStyle(
@@ -151,7 +152,7 @@ def build(**kwargs) -> Row:
     )
 
     if not _menubar:
-        print("Error. No menubar created.")
+        logging.error("Error. No menubar created.")
         return None
 
     # register controls

@@ -6,6 +6,7 @@ Licence: Unlicense
 """
 
 from os.path import commonprefix
+import logging
 from types import SimpleNamespace
 from traceback import extract_stack
 #from utils.client import showStatusMsg
@@ -52,7 +53,7 @@ def setReportLevel(level_: str) -> None:
 
 def showStatusMsg(message_: str) -> None:
     """Prints a message to the console."""
-    print(message_)
+    logging.info(message_)
 
 
 def removeCommonPrefix(str1:str=__prefix__, str2:str=None) -> str:

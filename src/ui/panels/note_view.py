@@ -4,17 +4,19 @@
 # Author: automated-refactor
 ###
 
+import re
+import os
 from flet import (
     Column, Text, Row, Colors, Divider, Container, TextField, 
     ScrollMode, ElevatedButton, IconButton, Icons, VerticalAlignment, MainAxisAlignment
     )
 from db import registry
-from db.handler import save_notes_collection
+from logic.persistence import save_notes
 from logic.log import info
-from models.notes import DEFAULT_MODULES
+#from models.notes import DEFAULT_MODULES
 from ui.controls.custom_menu import CustomMenu
-import re
 from datetime import datetime
+import logging
 
 
 def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> Column:
@@ -201,15 +203,14 @@ def _enter_edit(ev, page, note_data, title_fallback):
     info("Entering edit mode")
     # Debug: show current payload and attached model before entering edit mode
     try:
-        print(f"[DEBUG] _enter_edit note_data: title={note_data.get('title')!r}, date={note_data.get('date')!r}, template={note_data.get('template')!r}, body_present={bool(note_data.get('body'))}")
+        logging.debug("[DEBUG] _enter_edit note_data: title=%r, date=%r, template=%r, body_present=%s", note_data.get('title'), note_data.get('date'), note_data.get('template'), bool(note_data.get('body')))
         if note_data.get('_note_obj') is not None:
             no = note_data.get('_note_obj')
-            print("[DEBUG] _enter_edit _note_obj:",
-                  f"title={getattr(no,'title',None)!r}, topic={getattr(no,'topic',None)!r}, date={getattr(no,'date',None)!r}, time={getattr(no,'time',None)!r}, location={getattr(no,'location',None)!r}, participants={getattr(no,'participants',None)!r}, notes={getattr(no,'notes',None)!r}")
+            logging.debug("[DEBUG] _enter_edit _note_obj: title=%r, topic=%r, date=%r, time=%r, location=%r, participants=%r, notes=%r", getattr(no,'title',None), getattr(no,'topic',None), getattr(no,'date',None), getattr(no,'time',None), getattr(no,'location',None), getattr(no,'participants',None), getattr(no,'notes',None))
         else:
-            print("[DEBUG] _enter_edit: no attached _note_obj")
+            logging.debug("[DEBUG] _enter_edit: no attached _note_obj")
     except Exception as _e:
-        print("[DEBUG] _enter_edit introspect error:", _e)
+        logging.exception("[DEBUG] _enter_edit introspect error")
 
     note_data["_editing"] = True
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
@@ -245,7 +246,7 @@ def _on_save(ev, page, note_data, title_fallback):
                 registry.notes_collection.locations = items
                 registry.notes_collection.locations.sort()
                 if hasattr(registry, "notesFile") and registry.notesFile:
-                    save_notes_collection(registry.notes_collection, registry.notesFile)
+                    save_notes(registry.notes_collection, registry.notesFile)
 
         note_data["location"] = selected or ""
 
@@ -267,7 +268,7 @@ def _on_save(ev, page, note_data, title_fallback):
 
         _no = note_data.get("_note_obj")
         if _no:
-            print(f"[DEBUG] _on_save: updating attached _note_obj {getattr(_no,'title',None)!r}")
+            logging.debug("[DEBUG] _on_save: updating attached _note_obj %r", getattr(_no,'title',None))
             # Update the attached MeetingNote object with edited values
             _no.title = note_data.get("title", title_fallback)
             _no.topic = note_data.get("topic", "")
@@ -279,7 +280,9 @@ def _on_save(ev, page, note_data, title_fallback):
             _no.todos = note_data.get("todos", [])
             _no.updated_at = note_data["updated_at"]
 
-            print(f"[DEBUG] _on_save: updated _note_obj to title={getattr(_no,'title',None)!r}, topic={getattr(_no,'topic',None)!r}, date={getattr(_no,'date',None)!r}, time={getattr(_no,'time',None)!r}, location={getattr(_no,'location',None)!r}, participants={getattr(_no,'participants',None)!r}, notes={getattr(_no,'notes',None)!r}, todos={getattr(_no,'todos',None)!r}, updated_at={getattr(_no,'updated_at',None)!r}")
+            # Mark note dirty and persist changed notes
+            _no.mark_dirty()
+            logging.debug("[DEBUG] _on_save: updated _note_obj to title=%r, topic=%r, date=%r, time=%r, location=%r, participants=%r, notes=%r, todos=%r, updated_at=%r", getattr(_no,'title',None), getattr(_no,'topic',None), getattr(_no,'date',None), getattr(_no,'time',None), getattr(_no,'location',None), getattr(_no,'participants',None), getattr(_no,'notes',None), getattr(_no,'todos',None), getattr(_no,'updated_at',None))
     else:
         info("No _controls found in note_data; skipping save of edits")
         # If no _controls, just exit edit mode without changes

@@ -8,6 +8,7 @@
 # imports
 from flet import Row, MainAxisAlignment
 from db import register, registry
+import logging
 
 
 # constants
@@ -22,7 +23,7 @@ def build(content:list=None, **kwargs) -> Row:
 
     _page = registry.page
     if not _page:
-        print("Error. No page registered")
+        logging.error("Error. No page registered")
         return None
 
     register("ui.detailPanel", None)

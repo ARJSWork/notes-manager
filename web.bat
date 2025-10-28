@@ -89,11 +89,12 @@ echo.
 
 REM --- All checks passed, run the Flet Application ---
 echo Starting Flet application...
-echo Command: flet run --web --port 8765 --name "Web Agenda Manager" "%PYTHON_SCRIPT%"
+echo Command: flet run --web --port 8765 --name "Web Notes Manager" "%PYTHON_SCRIPT%"
 echo.
 
-rem flet run --web --name "Agenda Manager" "%PYTHON_SCRIPT%"
-START "Agenda-Manager - Flet Web" /LOW /MIN flet run --web --port 8765 --name "Web Agenda-Manager" "%PYTHON_SCRIPT%"
+rem flet run --web --name "Notes Manager" "%PYTHON_SCRIPT%"
+rem flet run --name Notes-Manager --web --port 8766 --host localhost --directory src\
+START "Notes-Manager - Flet Web" /LOW /MIN flet run --web --port 8765 --name "Web Notes-Manager" "%PYTHON_SCRIPT%"
 
 REM Capture the exit code from flet run
 SET FLET_EXIT_CODE=%ERRORLEVEL%

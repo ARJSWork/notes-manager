@@ -26,11 +26,12 @@ from flet import (
 )
 from models.notes import DEFAULT_TEMPLATES, DEFAULT_MODULES
 from db import registry
+import logging
 
 
 def show(page: Page, callback: callable, state: str = None):
     """Show a dialog to add a new meeting note."""
-    print("meeting_notes.show called, callback=", bool(callback))
+    logging.debug("meeting_notes.show called, callback=%s", bool(callback))
 
     # Visible date text and datepicker
     selected_date = Text(datetime.now().strftime('%Y-%m-%d'))
@@ -100,7 +101,7 @@ def show(page: Page, callback: callable, state: str = None):
 
     def on_ok_click(e):
         """Callback for the Ok button."""
-        print("meeting_notes: OK clicked")
+        logging.debug("meeting_notes: OK clicked")
         page.close(dialog)
         page.update()
 
@@ -232,10 +233,10 @@ def show(page: Page, callback: callable, state: str = None):
                     "todos": notes_field.value or "\n".join(todos) or None,
                     "notes": notes_field.value or "\n".join(notes[1:]) or None,
                 }
-                print("meeting_notes: calling callback with", payload)
+                logging.debug("meeting_notes: calling callback with %s", payload)
                 callback(page, payload)
             except Exception as ex:
-                print("meeting_notes callback error:", ex)
+                logging.exception("meeting_notes callback error")
 
     def on_cancel_click(e):
         """Callback for the Cancel button."""

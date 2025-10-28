@@ -6,6 +6,7 @@
 
 
 # imports
+import logging
 
 
 # constants
@@ -87,7 +88,7 @@ def handleError(code_: str, data_: str) -> bool:
     try:
         assert data_, getError(code_)
     except Exception as _e:
-        print(f"Error not found - {code_}: {data_}")
+        logging.error(f"Error not found - {code_}: {data_}")
         return False
 
     return True

@@ -5,25 +5,31 @@
 ###
 
 from flet import (
-    Page,
-    ExpansionPanelList,
-    ExpansionPanel,
-    ListTile,
-    Text,
-    Container,
+    AlertDialog, 
+    alignment,
+    Colors,
     Column,
-    Row,
+    Container,
+    ElevatedButton, 
+    ExpansionPanel,
+    ExpansionPanelList,
     IconButton,
     Icons,
-    Colors,
+    ListTile,
     ListTile, 
-    alignment
+    Page,
+    Row,
+    Text,
+    TextField, 
 )
 from flet import RadioGroup, Radio
+import logging
 from db import registry, register
 from models.notes import DEFAULT_CATEGORIES, DEFAULT_MODULES, DEFAULT_TEMPLATES
-from ui.dialogs import meeting_notes
+from ui.dialogs import meeting_notes, confirm as confirm_dialog
 from ui.panels.note_view import build_note_view
+from logic.persistence import slugify, rename_note_file, update_notes
+
 
 def create_panel_header(title: str, page, enabled: bool = False, add_callback=None, edit_callback=None, delete_callback=None):
     """Creates a ListTile with action buttons for the ExpansionPanel header.
@@ -38,22 +44,22 @@ def create_panel_header(title: str, page, enabled: bool = False, add_callback=No
     # Create buttons so we can register and toggle them later
     # Allow passing a custom add callback (used for Meeting Notes to receive created note)
     if add_callback:
-        print(f"create_panel_header: setting custom add for {title}")
+        logging.debug(f"create_panel_header: setting custom add for {title}")
         add_action = lambda e: add_callback(page)
     else:
-        print(f"create_panel_header: default add for {title}")
+        logging.debug(f"create_panel_header: default add for {title}")
         add_action = lambda e: meeting_notes.show(page, None)
 
     def _add_on_click(e):
-        print(f"header.add clicked for {title}")
+        logging.debug(f"header.add clicked for {title}")
         try:
             add_action(e)
         except Exception as ex:
-            print(f"header.add action error for {title}:", ex)
+            logging.exception(f"header.add action error for {title}")
 
     add_btn = IconButton(Icons.ADD_CIRCLE_OUTLINE, on_click=_add_on_click, disabled=add_button_disabled)
-    edit_btn = IconButton(Icons.EDIT_OUTLINED, on_click=(edit_callback if edit_callback else (lambda e: print(f"Edit {title}"))), disabled=edit_delete_disabled)
-    delete_btn = IconButton(Icons.DELETE_OUTLINE, on_click=(delete_callback if delete_callback else (lambda e: print(f"Delete {title}"))), disabled=edit_delete_disabled)
+    edit_btn = IconButton(Icons.EDIT_OUTLINED, on_click=(edit_callback if edit_callback else (lambda e: logging.debug(f"Edit {title}"))), disabled=edit_delete_disabled)
+    delete_btn = IconButton(Icons.DELETE_OUTLINE, on_click=(delete_callback if delete_callback else (lambda e: logging.debug(f"Delete {title}"))), disabled=edit_delete_disabled)
 
     # Register buttons under a predictable registry path so other code can update them
     # e.g. registry.ui.sidebar.MeetingNotes.add
@@ -74,6 +80,96 @@ def create_panel_header(title: str, page, enabled: bool = False, add_callback=No
         )
     )
 
+
+def populate_meeting_notes(page: Page, collection=None):
+    """Populate the MeetingNotes ListView from a NotesCollection.
+
+    This is safe to call multiple times; it clears the current list and
+    re-adds tiles for each MeetingNote found in `collection` (or
+    `registry.notes_collection` if omitted).
+    """
+    try:
+        coll = collection if collection is not None else getattr(registry, 'notes_collection', None)
+        meeting_ns = getattr(registry.ui.sidebar, 'MeetingNotes', None)
+        if not meeting_ns or not getattr(meeting_ns, 'list', None):
+            return
+
+        lv = meeting_ns.list
+        # clear existing entries
+        try:
+            lv.controls.clear()
+        except Exception:
+            pass
+
+        notes = coll.notes if coll and getattr(coll, 'notes', None) is not None else []
+
+        for note in notes:
+            try:
+                nd = {
+                    'title': getattr(note, 'title', None),
+                    'topic': getattr(note, 'topic', None),
+                    'date': getattr(note, 'date', None),
+                    'time': getattr(note, 'time', None),
+                    'location': getattr(note, 'location', None),
+                    'participants': getattr(note, 'participants', None),
+                    'notes': getattr(note, 'notes', None),
+                    'todos': getattr(note, 'todos', None),
+                    'created_at': getattr(note, 'created_at', None),
+                    'updated_at': getattr(note, 'updated_at', None),
+                    '_note_obj': note,
+                }
+
+                lt = ListTile(title=Text(nd.get('title') or "Untitled"), selected=False)
+                lt.note_data = nd
+                lt._is_selected = False
+
+                def _on_click(e, item=lt):
+                    # selection logic: clear others and select this
+                    try:
+                        for c in lv.controls:
+                            try:
+                                c._is_selected = False
+                                c.selected = False
+                            except Exception:
+                                pass
+                        item._is_selected = True
+                        item.selected = True
+                        try:
+                            registry.ui.sidebar.MeetingNotes.edit.disabled = False
+                            registry.ui.sidebar.MeetingNotes.delete.disabled = False
+                        except Exception:
+                            pass
+                        nd_local = getattr(item, 'note_data', {}) or {}
+                        col = build_note_view(e.page, nd_local, title_fallback=nd_local.get('title'))
+                        registry.subjects['contentView'].notify(e.page, [col])
+                    except Exception:
+                        logging.exception('Error handling sidebar note click')
+
+                lt.on_click = _on_click
+                lv.controls.append(lt)
+            except Exception:
+                logging.exception('Error adding note to sidebar list')
+
+        # auto-select first note
+        try:
+            if lv.controls:
+                first = lv.controls[0]
+                first._is_selected = True
+                first.selected = True
+                nd = getattr(first, 'note_data', {}) or {}
+                col = build_note_view(page, nd, title_fallback=nd.get('title'))
+                registry.subjects['contentView'].notify(page, [col])
+        except Exception:
+            logging.exception('Error auto-selecting first note in sidebar')
+
+        try:
+            page.update()
+        except Exception:
+            pass
+
+    except Exception:
+        logging.exception('Failed to populate MeetingNotes')
+
 def build(page: Page):
     """Builds the sidebar with collapsible list elements.
 
@@ -84,10 +180,10 @@ def build(page: Page):
     enabled = bool(getattr(registry, "notesFile", None) or getattr(registry, "notesName", None))
 
     # Optionally hide non-essential panels when not enabled
-    templates_visible = enabled
-    modules_visible = enabled
-    categories_visible = enabled
-    print("sidebar: build start, enabled=", enabled)
+    # templates_visible = enabled
+    # modules_visible = enabled
+    # categories_visible = enabled
+    logging.debug("sidebar: build start, enabled=%s", enabled)
     # Build interactive controls
     def _templates_on_change(e):
         val = getattr(e.control, "value", None)
@@ -116,26 +212,27 @@ def build(page: Page):
     meeting_list = ListView(controls=[], spacing=5, height=200)
     register("ui.sidebar.MeetingNotes.list", meeting_list)
 
-    def _meeting_on_select(e):
-        # e.control likely is a ListTile or similar; find selected index
-        # For now, enable edit/delete when any item is clicked
-        try:
-            registry.ui.sidebar.MeetingNotes.edit.disabled = False
-            registry.ui.sidebar.MeetingNotes.delete.disabled = False
-        except Exception:
-            pass
-        try:
-            page.update()
-        except Exception:
-            pass
+
+    # def _meeting_on_select(e):
+    #     # e.control likely is a ListTile or similar; find selected index
+    #     # For now, enable edit/delete when any item is clicked
+    #     try:
+    #         registry.ui.sidebar.MeetingNotes.edit.disabled = False
+    #         registry.ui.sidebar.MeetingNotes.delete.disabled = False
+    #     except Exception:
+    #         pass
+    #     try:
+    #         page.update()
+    #     except Exception:
+    #         pass
 
     def _meeting_add(page_ref):
         # open meeting_notes dialog and append created note
-        print("sidebar: meeting_add called")
+        logging.debug("sidebar: meeting_add called")
         def _cb(p, data):
-            print("sidebar: meeting_cb received", data)
+            logging.debug("sidebar: meeting_cb received %s", data)
             if not data:
-                print("sidebar: no data received", data)
+                logging.warning("sidebar: no data received %s", data)
                 return
 
             title = data.get("title") or "New Note"
@@ -284,21 +381,18 @@ def build(page: Page):
                 registry.ui.sidebar.MeetingNotes.delete.disabled = False
                 page_ref.update()
             except Exception as _e:
-                print("sidebar: meeting_add auto-select error", _e)
+                logging.exception("sidebar: meeting_add auto-select error")
                 pass
 
         # Call the meeting notes dialog (no test dialog / fallback) so the
         # user interacts with the real dialog and its OK handler can fire.
         try:
-            print("sidebar: calling meeting_notes.show")
+            logging.debug("sidebar: calling meeting_notes.show")
             meeting_notes.show(page_ref, _cb)
             page_ref.window.to_front()
-            print("sidebar: meeting_notes.show returned")
+            logging.debug("sidebar: meeting_notes.show returned")
         except Exception as ex:
-            print("sidebar: meeting_notes.show error:", ex)
-
-    # Delete handler for meeting notes
-    from ui.dialogs import confirm as confirm_dialog
+            logging.exception("sidebar: meeting_notes.show error")
 
     def _meeting_delete(e):
         try:
@@ -332,10 +426,7 @@ def build(page: Page):
 
             confirm_dialog.show(page, _do_delete)
         except Exception as ex:
-            print("_meeting_delete error:", ex)
-
-    # Edit (rename) handler for meeting notes - opens a small input dialog
-    from flet import AlertDialog, TextField, ElevatedButton, Row
+            logging.exception("_meeting_delete error")
 
     def _meeting_edit(e):
         try:
@@ -359,30 +450,36 @@ def build(page: Page):
 
             def _on_text_change(ev):
                 v = name_field.value or ""
-                ok_btn.disabled = not (len(v.strip()) >= 5 and len(v.strip()) <= 25)
+                ok_btn.disabled = not (len(v.strip()) >= 5 and len(v.strip()) <= 35)
                 page.update()
 
             name_field.on_change = _on_text_change
 
             def _on_ok(ev):
                 new_title = (name_field.value or "").strip()
-                if not (5 <= len(new_title) <= 25):
+                if not (5 <= len(new_title) <= 35):
                     return
                 # update the selected tile and its data
                 try:
                     sel.title = Text(new_title)
-                except Exception:
-                    pass
-                try:
                     nd = getattr(sel, "note_data", {})
+                    initial = nd["title"]
                     nd["title"] = new_title
                     sel.note_data = nd
-                except Exception:
-                    pass
-                # if selected, update content view
-                try:
                     if getattr(sel, "_is_selected", False):
-                        registry.subjects["contentView"].notify(page, [Column(controls=[Text(new_title)])])
+                        col = build_note_view(page, nd, title_fallback=new_title)
+                        registry.subjects["contentView"].notify(page, [col])
+
+                    for note in registry.notes_collection.notes:
+                        if note.title != initial:
+                            continue
+
+                        note.title = new_title
+                        # try to rename underlying file in the notes folder (sanitize special chars)
+                        rename_note_file(slugify(initial), slugify(new_title))
+                        update_notes(registry.notes_collection, check_exists=True)
+                        break
+
                 except Exception:
                     pass
 
@@ -394,7 +491,7 @@ def build(page: Page):
             rename_dlg = AlertDialog(title=Text("Rename Meeting Note"), content=Row([name_field]), actions=[cancel_btn, ok_btn])
             page.open(rename_dlg)
         except Exception as ex:
-            print("_meeting_edit error:", ex)
+            logging.exception("_meeting_edit error")
 
     # Register the add callback so header resolver can find it
     register("ui.sidebar.MeetingNotes.add_callback", _meeting_add)

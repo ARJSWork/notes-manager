@@ -6,11 +6,13 @@
 
 
 # imports
+from os import path
+import logging
 from enum import Enum
 from flet import ControlEvent, Page, Icon, Colors, Text
 from config.config import DATA_ROOT
 from db import register, registry
-from logic.persistence import save_collection
+from logic.persistence import save_notes
 from db.handler import create_default_collection, load_notes_collection
 from db.messages import getError
 from logic.ui import ContentAction, NoteState
@@ -18,6 +20,7 @@ from logic.ui.window import updateWindowState, updateWindowTitle
 from ui.dialogs import confirm as confirmDialog
 from ui.dialogs import file as fileDialog
 from ui.dialogs import notescollection as notesCollectionDialog
+from ui.views import sidebar
 
 
 # constants
@@ -41,17 +44,17 @@ def handle_menu_item_click(event:str, e:ControlEvent) -> None:
         #assert e.control.content, getError("U003")
 
     except Exception as _e:
-        print(_e)
+        logging.exception("handle_menu_item_click: assertion failed")
         return
     
     e.page.update()
 
     _element = e.control.content
     if _element and isinstance(_element, Icon):
-        print(f"{event}.{_element.key}.on_click")
+        logging.debug(f"{event}.{_element.key}.on_click")
 
     else:
-        print(f"{event}.on_click")
+        logging.debug(f"{event}.on_click")
 
     match event:
         case "Quit"|"ui.menu.file.quit":
@@ -69,7 +72,7 @@ def handle_menu_item_click(event:str, e:ControlEvent) -> None:
                 setMenuState(e.page, MenuState.CLOSED)
 
         case _:
-            print(f"Unknown event: {event}")
+            logging.warning(f"Unknown event: {event}")
 
 
 def new_callback(event:str, e:ControlEvent) -> None:
@@ -81,13 +84,13 @@ def new_callback(event:str, e:ControlEvent) -> None:
         assert e.control.content, getError("U003")
 
     except Exception as _e:
-        print(_e)
+        logging.exception("new_callback: assertion failed")
         return
 
     e.page.update()
 
     _element = e.control.content
-    print(f"{_element.value}.on_click")
+    logging.debug(f"{_element.value}.on_click")
 
     # Rufe den Open File Dialog auf
     notesCollectionDialog.show(e.page, setMenuState, MenuState.NEW)
@@ -102,13 +105,13 @@ def open_callback(event:str, e:ControlEvent) -> None:
         assert e.control.content, getError("U003")
 
     except Exception as _e:
-        print(_e)
+        logging.exception("open_callback: assertion failed")
         return
 
     e.page.update()
 
     _element = e.control.content
-    print(f"{_element.value}.on_click")
+    logging.debug(f"{_element.value}.on_click")
 
     # Rufe den Open File Dialog auf
     fileDialog.showOpenCollection(e.page, setMenuState, MenuState.OPENED)
@@ -123,13 +126,13 @@ def save_callback(event:str, e: ControlEvent) -> None:
         assert e.control.content, getError("U003")
 
     except Exception as _e:
-        print(_e)
+        logging.exception("save_callback: assertion failed")
         return
 
     e.page.update()
 
     _element = e.control.content
-    print(f"{_element.value}.on_click")
+    logging.debug(f"{_element.value}.on_click")
 
     # Rufe den Open File Dialog auf
     setMenuState(e.page, MenuState.SAVED)
@@ -144,13 +147,13 @@ def saveAsCallback(event:str, e: ControlEvent) -> None:
         assert e.control.content, getError("U003")
 
     except Exception as _e:
-        print(_e)
+        logging.exception("saveAsCallback: assertion failed")
         return
 
     e.page.update()
 
     _element = e.control.content
-    print(f"{_element.value}.on_click")
+    logging.debug(f"{_element.value}.on_click")
 
     # Rufe den Open File Dialog auf
     fileDialog.showSave(e.page, setMenuState, MenuState.SAVED)
@@ -161,39 +164,73 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
 
     match state_:
 
-        case MenuState.OPENED:
-            print("Menu is opened")
-            collection = load_notes_collection(registry.notesFile)
+        case MenuState.NEW:
+            logging.info("Menu is new")
+            collection = create_default_collection(registry.notesName)
             register("notes_collection", collection)
+            register("notesFileRoot", DATA_ROOT)
             registry.ui.menu.file.new.disabled = True
             registry.ui.menu.file.open.disabled = True
             registry.ui.menu.file.save.disabled = False
             registry.ui.menu.file.close.disabled = False
-            registry.ui.menu.manage.visible = True
-            registry.changed = False
-            #register("note", notesmanager(registry.notesFile))
-            registry.note.load()
+            registry.changed = True
             updateWindowTitle(page, registry.notesName)
             updateWindowState(page, registry.changed)
-            # Update
-            #notes.refresh(registry.note, "all")
-            # registry.ui.categoryFilter.visible = True
-            # _control = registry.note.controls["templates:1"]
-            # _control.key = "templates:1"
-            # _e = ControlEvent("initial", "??", data=_control.key, control=_control, page=page)
-            # registry.subjects["contentActions"].notify(_e, NoteState.SELECTED)
-            # registry.subjects["noteView"].notify(_e, NoteState.SELECTED)
             registry.subjects["contentView"].notify(page, [])
             page.window.to_front()
+
             # Show sidebar container if registered
+            registry.ui.sidebar.container.visible = True
+            page.update()
+
+            # Enable Add buttons but keep Edit/Delete disabled until selection
             try:
-                registry.ui.sidebar.container.visible = True
-            except Exception:
-                pass
-            try:
+                registry.ui.sidebar.MeetingNotes.add.disabled = False
+                registry.ui.sidebar.MeetingNotes.edit.disabled = True
+                registry.ui.sidebar.MeetingNotes.delete.disabled = True
+                if registry.ui.sidebar.Templates:
+                    registry.ui.sidebar.Templates.add.disabled = False
+                    registry.ui.sidebar.Templates.edit.disabled = True
+                    registry.ui.sidebar.Templates.delete.disabled = True
+                if registry.ui.sidebar.Modules:
+                    registry.ui.sidebar.Modules.add.disabled = False
+                    registry.ui.sidebar.Modules.edit.disabled = True
+                    registry.ui.sidebar.Modules.delete.disabled = True
+                if registry.ui.sidebar.Categories:
+                    registry.ui.sidebar.Categories.add.disabled = False
+                    registry.ui.sidebar.Categories.edit.disabled = True
+                    registry.ui.sidebar.Categories.delete.disabled = True
+
                 page.update()
+
             except Exception:
                 pass
+
+        case MenuState.OPENED:
+            logging.info("Menu is opened")
+            collection = load_notes_collection(registry.notesFileRoot)
+            register("notes_collection", collection)
+            register("notesFile", path.join(registry.notesFileRoot, "collection.json"))
+            registry.ui.menu.file.new.disabled = True
+            registry.ui.menu.file.open.disabled = True
+            registry.ui.menu.file.save.disabled = False
+            registry.ui.menu.file.close.disabled = False
+            registry.changed = False
+            updateWindowTitle(page, registry.notesName)
+            updateWindowState(page, registry.changed)
+            registry.subjects["contentView"].notify(page, [])
+            page.window.to_front()
+
+            # Show sidebar container if registered
+            registry.ui.sidebar.container.visible = True
+            page.update()
+
+            # Populate Meeting Notes list from loaded collection (delegated to sidebar)
+            try:
+                sidebar.populate_meeting_notes(page, collection)
+            except Exception:
+                logging.exception('Failed to populate MeetingNotes via sidebar.populate_meeting_notes')
+
             # Enable Add buttons but keep Edit/Delete disabled until selection
             try:
                 registry.ui.sidebar.MeetingNotes.add.disabled = False
@@ -212,21 +249,20 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
                     registry.ui.sidebar.Categories.add.disabled = False
                     registry.ui.sidebar.Categories.edit.disabled = True
                     registry.ui.sidebar.Categories.delete.disabled = True
-            except Exception:
-                pass
-            try:
+
                 page.update()
+
             except Exception:
                 pass
         
         case MenuState.CLOSED:
-            print("Menu is closed")
+            logging.info("Menu is closed")
             registry.ui.menu.file.new.disabled = False
             registry.ui.menu.file.open.disabled = False
             registry.ui.menu.file.save.disabled = True
             registry.ui.menu.file.close.disabled = True
-            registry.ui.menu.manage.visible = False
-            registry.ui.categoryFilter.visible = False
+            #registry.ui.menu.manage.visible = False
+            #registry.ui.categoryFilter.visible = False
             registry.notesFile = None
             registry.notesName = None
             registry.changed = False
@@ -234,8 +270,9 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             updateWindowTitle(page, registry.notesName)
             updateWindowState(page, registry.changed)
             #notes.clear()
-            registry.subjects["contentView"].notify(page, [Text("Choose a notes collection with 'File Menu'...", size=16, color=Colors.WHITE)])
+            registry.subjects["contentView"].notify(page, [])
             page.window.to_front()
+
             # Disable sidebar buttons on close
             try:
                 registry.ui.sidebar.MeetingNotes.add.disabled = True
@@ -255,23 +292,14 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
                     registry.ui.sidebar.Categories.delete.disabled = True
             except Exception:
                 pass
-            try:
-                page.update()
-            except Exception:
-                pass
+
             # Hide sidebar container if no notes are open
-            try:
-                registry.ui.sidebar.container.visible = False
-            except Exception:
-                pass
-            try:
-                page.update()
-            except Exception:
-                pass
+            registry.ui.sidebar.container.visible = False
+            page.update()
 
         case MenuState.SAVED:
             if registry.notes_collection:
-                success, msg = save_collection(registry.notes_collection, DATA_ROOT)
+                success, msg = save_notes(registry.notes_collection, DATA_ROOT)
                 if success:
                     registry.changed = False
                     updateWindowTitle(page, registry.notesName)
@@ -283,7 +311,7 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
                             registry.ui.status.current.update()
                     except Exception:
                         pass
-                    print(msg)
+                    logging.info(msg)
                 else:
                     try:
                         if hasattr(registry, 'ui') and getattr(registry.ui, 'status', None):
@@ -291,9 +319,9 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
                             registry.ui.status.current.update()
                     except Exception:
                         pass
-                    print(f"Save failed: {msg}")
+                    logging.error(f"Save failed: {msg}")
             else:
-                print("Error: No collection loaded to save.")
+                logging.error("Error: No collection loaded to save.")
             
             # Re-enable menu items
             registry.ui.menu.file.new.disabled = True
@@ -302,58 +330,8 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             registry.ui.menu.file.close.disabled = False
             page.window.to_front()
 
-        case MenuState.NEW:
-            print("Menu is new")
-            collection = create_default_collection(registry.notesName)
-            register("notes_collection", collection)
-            registry.ui.menu.file.new.disabled = True
-            registry.ui.menu.file.open.disabled = True
-            registry.ui.menu.file.save.disabled = False
-            registry.ui.menu.file.close.disabled = False
-            registry.changed = True
-            #register("note", create_default_collection(registry.notesName))
-            updateWindowTitle(page, registry.notesName)
-            updateWindowState(page, registry.changed)
-            # Update
-            #notes.refresh(registry.note, "all")
-            # registry.ui.categoryFilter.visible = True
-            registry.subjects["contentView"].notify(page, [])
-            page.window.to_front()
-            # Show sidebar container if registered (new collection created)
-            try:
-                registry.ui.sidebar.container.visible = True
-            except Exception:
-                pass
-            try:
-                page.update()
-            except Exception:
-                pass
-            # Enable Add buttons but keep Edit/Delete disabled until selection
-            try:
-                registry.ui.sidebar.MeetingNotes.add.disabled = False
-                registry.ui.sidebar.MeetingNotes.edit.disabled = True
-                registry.ui.sidebar.MeetingNotes.delete.disabled = True
-                if registry.ui.sidebar.Templates:
-                    registry.ui.sidebar.Templates.add.disabled = False
-                    registry.ui.sidebar.Templates.edit.disabled = True
-                    registry.ui.sidebar.Templates.delete.disabled = True
-                if registry.ui.sidebar.Modules:
-                    registry.ui.sidebar.Modules.add.disabled = False
-                    registry.ui.sidebar.Modules.edit.disabled = True
-                    registry.ui.sidebar.Modules.delete.disabled = True
-                if registry.ui.sidebar.Categories:
-                    registry.ui.sidebar.Categories.add.disabled = False
-                    registry.ui.sidebar.Categories.edit.disabled = True
-                    registry.ui.sidebar.Categories.delete.disabled = True
-            except Exception:
-                pass
-            try:
-                page.update()
-            except Exception:
-                pass
-
         case _:
-            print("Menu is unknown")
+            logging.info("Menu is unknown")
             registry.ui.menu.file.new.disabled = False
             registry.ui.menu.file.open.disabled = False
             registry.ui.menu.file.save.disabled = True

@@ -7,6 +7,8 @@
 
 # imports
 from flet import app, Control, Page, Row, IconButton, Column, Container, Text, ScrollMode, WindowDragArea, Stack, StackFit
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
 from flet import MainAxisAlignment, Icons, Colors, border, alignment
 from db import register, registry
 from logic.pattern.observer import ObservablesList
@@ -28,7 +30,10 @@ def layout(page_:Page) -> list:
         if not _col2:
             return
 
-        _cont2.alignment = alignment.top_center
+        _cont2.alignment = alignment.top_center if items_ else alignment.center
+        if not items_:
+            items_ = [Text("Choose a notes collection with 'File Menu'...", size=16, color=Colors.WHITE)]
+
         _cont2.update()
         _col2.controls.clear()
         _col2.controls.extend(items_)
@@ -81,18 +86,19 @@ def ui(page_:Page) -> None:
     """ Build UI """
 
     if not page_:
-        print("Error: No page")
+        logging.error("Error: No page")
         quit(-1)
 
     # Set registry values
     register("changed", False)
 
     # Do Flet stuff
-    page_.title = "Agenda Manager"
+    page_.title = "Notes Manager"
     page_.padding = 0
     page_.spacing = 0
     page_.window.title_bar_hidden = True
     page_.window.maximized = True
+    page_.window.icon = "assets/icon.ico"
     page_.window.center()
 
     # Do Layout stuff
@@ -136,4 +142,5 @@ def run() -> None:
     """ Run program loop """
 
     # return app(basicDemoUi)
-    return app(ui)
+    #return app(ui)
+    return app(target=ui, view="web_browser", assets_dir="assets", upload_dir="upload", port=8766, host="127.0.0.1")

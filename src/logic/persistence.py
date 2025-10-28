@@ -4,171 +4,268 @@
 # Author: Gemini
 ###
 
-import os
-import json
 import re
-import shutil
-import tempfile
-import traceback
-from datetime import datetime
-from typing import Union, List, Tuple
-
-from models.notes import NotesCollection, MeetingNote, Module, Template
+import json
+import unicodedata
+from os import path, rename, remove, makedirs, listdir, fsync, replace
+from datetime import datetime, timezone
+from traceback import format_exc
+from typing import Tuple
+from db import registry
+from config.config import DATA_ROOT
+from models.notes import NotesCollection, MeetingNote
 
 def slugify(text: str) -> str:
     """Converts a string to a slug suitable for filenames.
     
     Replaces spaces with underscores, removes invalid characters.
     """
-    text = text.replace(' ', '_')
-    text = re.sub(r'[^\w_.]', '', text)
+    if not text:
+        return ''
+    
+    text = text.strip()
+    # Normalize unicode to closest ASCII
+    text = unicodedata.normalize('NFKD', text)
+    text = text.encode('ascii', 'ignore').decode('ascii')
+    # Replace spaces and common separators with underscore
+    text = re.sub(r'[\s/\\]+', '_', text)
+    # Remove any character that is not alphanumeric or underscore (removes (,)./ etc.)
+    text = re.sub(r'[^\w]', '', text)
+    # Collapse multiple underscores and trim
+    text = re.sub(r'_+', '_', text).strip('_')
+    # Fallback to a timestamped name if empty
+    if not text:
+        text = datetime.utcnow().strftime('note_%Y%m%dT%H%M%SZ')
     return text
 
-def _serialize_note_content(note_content: Union[List[str], Template, List[Module], str]) -> str:
-    """Serializes a note's content to a markdown-like string."""
-    if isinstance(note_content, str):
-        return note_content
 
-    if isinstance(note_content, list) and all(isinstance(i, str) for i in note_content):
-        return "\n".join(note_content)
+def rename_note_file(old_title: str, new_title: str) -> Tuple[bool, str]:
+    """Renames a note file based on a new title.
 
-    if isinstance(note_content, list) and all(isinstance(i, Module) for i in note_content):
-        parts = []
-        for module in note_content:
-            parts.append(f"## {module.name}")
-            if module.content:
-                parts.append("\n".join(module.content))
-        return "\n".join(parts)
-    
-    # Fallback for other types like Template, though not fully implemented.
-    return ""
+    Returns (True, new_path) on success or (False, error_msg).
+    """
+    try:
+        collection_slug = slugify(registry.notes_collection.name)
+        collection_path = path.join(DATA_ROOT, collection_slug)
 
-def save_collection(collection: NotesCollection, data_root: str) -> Tuple[bool, str]:
-    """Saves the entire notes collection to the disk atomically.
+        old_path = f"{path.join(collection_path, old_title)}.json"
+        if not path.exists(old_path):
+            return False, f"Old path does not exist: {old_path}"
 
-    Returns (True, message) on success, or (False, error_message) on failure.
-    The implementation creates a backup of the current collection directory (if it exists),
-    writes each note to a temporary file and then atomically replaces files. On error,
-    it attempts to roll back to the backup.
+        new_path = f"{path.join(collection_path, new_title)}.json"
+        if path.exists(new_path):
+            return False, f"Target file already exists: {new_title}"
+
+        rename(old_path, new_path)
+        return True, new_path
+    except Exception as e:
+        tb = format_exc()
+        return False, f"Failed to rename note file: {e}\n{tb}"
+
+
+def update_notes(collection: NotesCollection, collection_path: str = None, check_exists: bool = False) -> Tuple[bool, str]:
+    """Update all note files in the collection to match their current titles.
+
+    Returns (True, message) on success or (False, error_msg).
     """
     try:
         if not collection or not collection.name:
-            return False, "Invalid collection object or collection name."
+            return False, "Invalid collection"
 
-        collection_slug = slugify(collection.name)
-        # Store collections directly under DATA_ROOT
-        collection_path = os.path.join(data_root, collection_slug)
-        os.makedirs(data_root, exist_ok=True)
+        if not collection_path:
+            collection_slug = slugify(collection.name)
+            collection_path = path.join(DATA_ROOT, collection_slug)
 
-        # Create a backup of existing collection folder to allow rollback
-        backup_path = None
-        if os.path.exists(collection_path):
-            ts = datetime.now().strftime("%Y%m%dT%H%M%SZ")
-            backup_path = f"{collection_path}.bak_{ts}"
-            if os.path.exists(backup_path):
-                shutil.rmtree(backup_path)
-            shutil.copytree(collection_path, backup_path)
-
-        # Ensure collection folder exists (create if missing)
-        os.makedirs(collection_path, exist_ok=True)
-
-        notes_metadata = []
-        saved_filenames = set()
-
-        for note in collection.notes:
-            if not getattr(note, "title", None):
-                continue  # Skip notes without a title
-
-            base_filename = slugify(getattr(note, "title", "note")) or "note"
-            # Append time to filename if available in note.time
-            # note_time = getattr(note, "time", None)
-            # time_part = ""
-            # if note_time:
-            #     # Expect times like '10:00' -> '1000'
-            #     t = re.sub(r"[^0-9]", "", str(note_time))
-            #     if t:
-            #         time_part = f"_{t}"
-            # note_filename = f"{base_filename}{time_part}.json"
-
-            # Handle filename collisions (also consider existing files)
-            counter = 2
-            note_filename = f"{base_filename}.json"
-            while note_filename in saved_filenames or os.path.exists(os.path.join(collection_path, note_filename)):
-                note_filename = f"{base_filename}_{counter}.json"
-                counter += 1
-            saved_filenames.add(note_filename)
-
-            note_filepath = os.path.join(collection_path, note_filename)
-            tmp_filepath = f"{note_filepath}.tmp"
-
-            try:
-                # Build a structured representation for the note using stored metadata
-                # Prefer explicit fields (topic, notes, participants, etc.) where available
-                note_title = getattr(note, "title", "")
-                note_created = getattr(note, "created_at", None)
-                note_notes = getattr(note, "notes", None)
-                # If user provided a concise notes field, use it as content; otherwise try to extract Notes section
-                # content_value = ""
-                # if note_notes:
-                #     content_value = note_notes
-                # else:
-                #     content_value = getattr(note, "content", "")
-
-                # # Extract todos/checklist lines from the content (lines with '- [' )
-                # todos = []
-                # try:
-                #     for ln in str(content_value).splitlines():
-                #         if ln.strip().startswith("- [") or ln.strip().startswith("[ ]"):
-                #             todos.append(ln.strip())
-                # except Exception:
-                #     todos = []
-
-                # Build final structured representation
-                note_struct = {
-                    "title": note_title,
-                    "created_at": note_created,
-                    "updated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
-                    "topic": getattr(note, 'topic', None) or None,
-                    "date": getattr(note, 'date', None) or None,
-                    "time": getattr(note, 'time', None) or None,
-                    "location": getattr(note, 'location', None) or None,
-                    "participants": [p for p in (getattr(note, 'participants', []) or [])],
-                    "notes": getattr(note, 'notes', None) or None,
-                    "todos": getattr(note, 'todos', []) or None
-                }
-
-                # Write JSON note file atomically
-                with open(tmp_filepath, 'w', encoding='utf-8') as f:
-                    json.dump(note_struct, f, indent=2, ensure_ascii=False)
-                    f.flush()
-                    os.fsync(f.fileno())
-
-                # Atomically replace tmp -> final
-                os.replace(tmp_filepath, note_filepath)
+        # Ensure collection.json exists
+        json_filepath = path.join(collection_path, "collection.json")
+        if check_exists and not path.exists(json_filepath):
+            return False, f"collection.json does not exist at {json_filepath}"
+        
+        # After saving notes, update collection.json
+        okc, msgc = True, ""
+        try:
+            # reuse collection.json writing from save_collection: build metadata
+            notes_metadata = []
+            for note in collection.notes:
+                # find file by title/date/time-based naming - best-effort
+                base_filename = slugify(getattr(note, 'title', 'note')) or 'note'
+                filename = f"{base_filename}.json"
+                if not path.exists(path.join(collection_path, filename)):
+                    # fallback: pick any matching by prefix
+                    for f in listdir(collection_path):
+                        if f.startswith(base_filename):
+                            filename = f
+                            break
 
                 notes_metadata.append({
-                    "title": getattr(note, "title", ""),
-                    "filename": note_filename
+                    "title": getattr(note, 'title', ''),
+                    "filename": filename
                 })
 
-            except Exception as e:
-                # Cleanup tmp file
-                if os.path.exists(tmp_filepath):
-                    try:
-                        os.remove(tmp_filepath)
-                    except Exception:
-                        pass
-                # Rollback to backup if available
-                if backup_path and os.path.exists(backup_path):
-                    try:
-                        if os.path.exists(collection_path):
-                            shutil.rmtree(collection_path)
-                        shutil.copytree(backup_path, collection_path)
-                    except Exception as _re:
-                        return False, f"Failed while writing note '{note_filename}': {e}; rollback failed: {_re}"
-                return False, f"Failed while writing note '{note_filename}': {e}"
+            now = f"{datetime.now(tz=timezone.utc).isoformat()}Z"
+            collection_slug = slugify(collection.name)
+            collection_json_content = {
+                "collection_name": collection.name,
+                "slug": collection_slug,
+                "created_at": getattr(collection, "created_at", now),
+                "updated_at": now,
+                "notes": notes_metadata,
+                "note_count": len(notes_metadata),
+                "categories": getattr(collection, "categories", []),
+                "tags": getattr(collection, "tags", []),
+                "locations": getattr(collection, "locations", []),
+            }
 
-        # Create and save collection.json
+            json_filepath = path.join(collection_path, "collection.json")
+            tmp_json = json_filepath + '.tmp'
+
+            backup_path = path.join(collection_path, f"collection.json.bak")
+            if path.exists(backup_path):
+                remove(backup_path)
+
+            if path.exists(json_filepath):
+                rename(json_filepath, backup_path)
+
+            with open(tmp_json, 'w', encoding='utf-8') as f:
+                json.dump(collection_json_content, f, indent=4, ensure_ascii=False)
+                f.flush()
+                fsync(f.fileno())
+
+            replace(tmp_json, json_filepath)
+
+        except Exception as e:
+            okc = False
+            msgc = str(e)
+
+        return True, f"Notes saved; collection updated: {msgc}" if okc else (False, f"Failed updating collection.json: {msgc}")
+
+    except Exception as e:
+        tb = format_exc()
+        return False, f"Error in update_notes: {e}\n{tb}"
+
+
+def _serialize_note_for_write(note: MeetingNote) -> dict:
+    """Return a dict representation of a MeetingNote for JSON writing."""
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    content_value = note.notes or (note.content if isinstance(note.content, str) else "")
+    todos = note.todos or []
+    return {
+        "title": note.title,
+        "created_at": note.created_at,
+        "updated_at": note.updated_at or now,
+        "topic": getattr(note, 'topic', None) or None,
+        "date": getattr(note, 'date', None) or None,
+        "time": getattr(note, 'time', None) or None,
+        "location": getattr(note, 'location', None) or None,
+        "participants": [p for p in (getattr(note, 'participants', []) or [])],
+        "notes": getattr(note, 'notes', None) or None,
+        "todos": todos,
+        "content": content_value,
+    }
+
+
+def save_note(note: MeetingNote, collection_path: str) -> Tuple[bool, str]:
+    """Save a single MeetingNote if its `dirty` flag is True.
+
+    Returns (True, message) on success or (False, error_msg).
+    """
+    try:
+        if not getattr(note, 'dirty', False):
+            return True, "Skipped (not dirty)"
+
+        # Prepare filename
+        base_filename = slugify(getattr(note, 'title', 'note')) or 'note'
+        filename = f"{base_filename}.json"
+        
+        dst = path.join(collection_path, filename)
+        tmp = dst + '.tmp'
+
+        backup_path = path.join(collection_path, f"{filename}.bak")
+        if path.exists(backup_path):
+            remove(backup_path)
+        
+        if path.exists(dst):
+            rename(dst, backup_path)
+
+        data = _serialize_note_for_write(note)
+        # atomic write
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            fsync(f.fileno())
+        replace(tmp, dst)
+        try:
+            note.clear_dirty()
+        except Exception:
+            pass
+        return True, f"Saved note to {dst}"
+    except Exception as e:
+        tb = format_exc()
+        return False, f"Failed to save note: {e}\n{tb}"
+
+
+def save_notes(collection: NotesCollection, data_root: str) -> Tuple[bool, str]:
+    """Save only notes marked dirty in the collection.
+
+    Writes individual note files and updates collection.json.
+    """
+    try:
+        if not collection or not collection.name:
+            return False, "Invalid collection"
+
+        collection_slug = slugify(collection.name)
+        collection_path = path.join(data_root, collection_slug)
+        makedirs(collection_path, exist_ok=True)
+
+        # Save all dirty notes
+        results = []
+        for note in collection.notes:
+            if not note.dirty:
+                continue
+
+            ok, msg = save_note(note, collection_path)
+            results.append((ok, msg))
+
+        # After saving notes, update collection.json
+        okc, msgc = update_notes(collection, collection_path)
+        if not okc:
+            return False, "Some notes failed to save:\n" + "\n".join(msgc)
+        
+        return True, "All dirty notes saved successfully."
+
+    except Exception as e:
+        tb = format_exc()
+        return False, f"Error in save_changed_notes: {e}\n{tb}"
+
+
+def save_collection_view(collection: NotesCollection, data_root: str) -> Tuple[bool, str]:
+    """Force an update of collection.json (index) without touching note files."""
+    try:
+        if not collection or not collection.name:
+            return False, "Invalid collection"
+        collection_slug = slugify(collection.name)
+        collection_path = path.join(data_root, collection_slug)
+        makedirs(collection_path, exist_ok=True)
+
+        notes_metadata = []
+        for note in collection.notes:
+            base_filename = slugify(getattr(note, 'title', 'note')) or 'note'
+            time_part = ''
+            if getattr(note, 'time', None):
+                t = re.sub(r"[^0-9]", "", str(getattr(note, 'time')))
+                if t:
+                    time_part = f"_{t}"
+            filename = f"{base_filename}{time_part}.json"
+            if not path.exists(path.join(collection_path, filename)):
+                for f in listdir(collection_path):
+                    if f.startswith(base_filename):
+                        filename = f
+                        break
+            notes_metadata.append({
+                "title": getattr(note, 'title', ''),
+                "filename": filename
+            })
+
         now = datetime.utcnow().isoformat() + "Z"
         collection_json_content = {
             "collection_name": collection.name,
@@ -176,52 +273,22 @@ def save_collection(collection: NotesCollection, data_root: str) -> Tuple[bool, 
             "created_at": getattr(collection, "created_at", now),
             "updated_at": now,
             "notes": notes_metadata,
-            "note_count": len(notes_metadata)
+            "note_count": len(notes_metadata),
+            "categories": getattr(collection, "categories", []),
+            "tags": getattr(collection, "tags", []),
+            "locations": getattr(collection, "locations", []),
         }
 
-        # Also save other metadata from NotesCollection if available
-        collection_json_content["categories"] = getattr(collection, "categories", [])
-        collection_json_content["tags"] = getattr(collection, "tags", [])
-        collection_json_content["locations"] = getattr(collection, "locations", [])
-
-        json_filepath = os.path.join(collection_path, "collection.json")
-        tmp_json_filepath = f"{json_filepath}.tmp"
-
-        try:
-            with open(tmp_json_filepath, 'w', encoding='utf-8') as f:
-                json.dump(collection_json_content, f, indent=4)
-                f.flush()
-                os.fsync(f.fileno())
-
-            os.replace(tmp_json_filepath, json_filepath)
-
-        except Exception as e:
-            # Cleanup tmp json
-            if os.path.exists(tmp_json_filepath):
-                try:
-                    os.remove(tmp_json_filepath)
-                except Exception:
-                    pass
-            # Rollback to backup if present
-            if backup_path and os.path.exists(backup_path):
-                try:
-                    if os.path.exists(collection_path):
-                        shutil.rmtree(collection_path)
-                    shutil.copytree(backup_path, collection_path)
-                except Exception as _re:
-                    return False, f"Failed writing collection.json: {e}; rollback failed: {_re}"
-            return False, f"Failed writing collection.json: {e}"
-
-        return True, f"Successfully saved collection '{collection.name}' to '{collection_path}'."
-
+        json_filepath = path.join(collection_path, "collection.json")
+        tmp_json = json_filepath + '.tmp'
+        with open(tmp_json, 'w', encoding='utf-8') as f:
+            json.dump(collection_json_content, f, indent=4, ensure_ascii=False)
+            f.flush()
+            fsync(f.fileno())
+        replace(tmp_json, json_filepath)
+        return True, f"collection.json updated at {json_filepath}"
     except Exception as e:
-        tb = traceback.format_exc()
-        return False, f"Unexpected error during save: {e}\n{tb}"
+        tb = format_exc()
+        return False, f"Failed to update collection view: {e}\n{tb}"
     
-    finally:
-        # If we get here, the save was successful. Remove backup if it exists.
-        if backup_path and os.path.exists(backup_path):
-            try:
-                shutil.rmtree(backup_path)
-            except Exception:
-                pass
+    # end save_collection

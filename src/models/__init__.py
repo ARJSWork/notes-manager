@@ -8,6 +8,7 @@
 # imports
 from re import match
 from types import SimpleNamespace
+import logging
 
 
 # constants
@@ -30,7 +31,7 @@ class ExtendedNamespaceOld(SimpleNamespace):
         """
 
         if attribute_ is None:
-            print("Problem: No attribute name given!")
+            logging.error("Problem: No attribute name given!")
             return None
 
         _name = attribute_.replace(" ", "_")
@@ -51,7 +52,7 @@ class ExtendedNamespaceOld(SimpleNamespace):
         """
 
         if attribute_ is None:
-            print("Problem: No attribute name given!")
+            logging.error("Problem: No attribute name given!")
             return None
 
         _name = attribute_.replace(" ", "_")

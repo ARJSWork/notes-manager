@@ -91,12 +91,12 @@ echo.
 
 REM --- All checks passed, run the Flet Application ---
 echo Starting Flet application...
-echo Command: flet run --name "Agenda Manager" "%PYTHON_SCRIPT%"
+echo Command: flet run --name "Notes Manager" "%PYTHON_SCRIPT%"
 echo.
 
-rem flet run --web --name "Agenda Manager" "%PYTHON_SCRIPT%"
+rem flet run --web --name "Notes-Manager" "%PYTHON_SCRIPT%"
 rem START "Agenda-Manager - Flet" /LOW /MIN flet run --assets src\assets --hidden --name "Agenda-Manager" "%PYTHON_SCRIPT%"
-flet run --assets src\assets --hidden --name "Agenda-Manager" "%PYTHON_SCRIPT%"
+flet run --assets src\assets --hidden --name "Notes-Manager" "%PYTHON_SCRIPT%"
 
 REM Capture the exit code from flet run
 SET FLET_EXIT_CODE=%ERRORLEVEL%
