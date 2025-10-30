@@ -23,9 +23,10 @@ import logging
 def parse_arguments():
     """Add this function to handle command-line arguments"""
 
-    parser = ArgumentParser(description="Convert PDF files to Markdown.")
+    parser = ArgumentParser(description="Notes Manager.")
+    parser.add_argument("--web", action="store_true", help="Run in web browser.")
     # parser.add_argument("data_folder", type=str, default="data", help="Path to the input data folder containing PDF files.")
-    # parser.add_argument("out_folder", type=str, default="out", help="Path to the output folder for Markdown files.")
+    # parser.add_action("out_folder", type=str, default="out", help="Path to the output folder for Markdown files.")
     args = parser.parse_args()
 
     # # Validate the data folder
@@ -46,7 +47,7 @@ def main(args_:Namespace) -> None:
     logging.info("Hello world! This is Notes Manager!")
     register("args", args_)
     register("dirty", False)
-    app.run()
+    app.run(args_.web)
 
 
 # Import Guard

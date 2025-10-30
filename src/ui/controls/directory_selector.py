@@ -25,6 +25,12 @@ class DirectorySelector(ft.Column):
         self.intitial_path = intitial_path
 
         self.list_view = ft.ListView(expand=True, spacing=10)
+
+        # Buttons created as attributes so we can enable/disable and change color
+        self.cancel_button = ft.TextButton("Cancel", on_click=self.cancel_clicked)
+        # Start with Select disabled
+        self.select_button = ft.FilledButton("Select", on_click=self.select_clicked, disabled=True)
+
         self.dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Select a Collection"),
@@ -34,8 +40,8 @@ class DirectorySelector(ft.Column):
                 height=300,
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=self.cancel_clicked),
-                ft.FilledButton("Select", on_click=self.select_clicked),
+                self.cancel_button,
+                self.select_button,
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -64,21 +70,62 @@ class DirectorySelector(ft.Column):
 
     def list_tile_clicked(self, e):
         """Handles the click event of a list tile."""
-        for tile in self.list_view.controls:
-            tile.selected = False
-        e.control.selected = True
-        self.selected_path = e.control.data
-        self.page.update()
+        clicked_path = e.control.data
 
+        # If clicking the already-selected tile, toggle (deselect)
+        if self.selected_path == clicked_path:
+            # deselect
+            e.control.selected = False
+            self.selected_path = None
+        else:
+            # select this tile and clear others
+            for tile in self.list_view.controls:
+                tile.selected = False
+            e.control.selected = True
+            self.selected_path = clicked_path
+
+        # Update Select button enabled state and color
+        if self.selected_path:
+            self.select_button.disabled = False
+            try:
+                # use theme color for success / green
+                self.select_button.bgcolor = ft.Colors.GREEN
+            except Exception:
+                # if colors not available or attribute missing, ignore
+                pass
+        else:
+            self.select_button.disabled = True
+            try:
+                self.select_button.bgcolor = None
+            except Exception:
+                pass
+
+        # Reflect changes in UI
+        try:
+            self.select_button.update()
+        except Exception:
+            pass
+        self.page.update()
 
     def cancel_clicked(self, e):
         """Handles the click event of the cancel button."""
+        # Inform caller with empty info and close
+        try:
+            if callable(self.on_select_callback):
+                self.on_select_callback({})
+        except Exception:
+            pass
         self.page.close(self.dialog)
         self.page.update()
 
     def select_clicked(self, e):
         """Handles the click event of the select button."""
+        # Only proceed when a selection exists
         if self.selected_path:
-            self.on_select_callback(self.selected_path)
             self.page.close(self.dialog)
             self.page.update()
+            try:
+                if callable(self.on_select_callback):
+                    self.on_select_callback(self.selected_path)
+            except Exception:
+                pass

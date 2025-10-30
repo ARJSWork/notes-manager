@@ -1,0 +1,13 @@
+feat: Improved open process and fixed UI inconsistencies
+
+This commit introduces several improvements to the file opening process and fixes a bug related to the window title bar color.
+
+The main changes are:
+
+- **Refactored Open Process:** The logic for handling the 'open' action has been improved for better state management and UI feedback. The sidebar is now correctly shown and populated when a new collection is created or an existing one is opened. The sidebar is hidden when the collection is closed.
+
+- **Fixed Title Bar Color:** A bug was fixed where the `WindowsTitleBar` was not always colored correctly according to the current window state (changed, saved, initial). The background color of the drag bar is now updated along with the other UI elements.
+
+- **Enhanced UI State Management:** The enabling and disabling of various UI elements, including buttons in the sidebar for Templates, Modules, and Categories, is now more robust and reflects the application's state more accurately.
+
+- **Status Bar Feedback:** The save process now provides feedback to the user through the status bar, indicating whether the save operation was successful or not.

@@ -114,8 +114,6 @@ def showOpenCollection(page: Page, callback:callable, state:str=None) -> None:
     def on_select(path_:str) -> None:
         """Callback for the Ok button."""
         logging.debug("meeting_notes: OK clicked")
-        page.close(directory_selector.dialog)
-        page.update()
         register("notesFile", path.join(path_, "collection.json"))
         register("notesFileRoot", path_)
         register("notesName", path.basename(path_))

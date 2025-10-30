@@ -108,7 +108,6 @@ def ui(page_:Page) -> None:
     register("ui.menuBar", menu.build())
 
     # Do Layout stuff
-    #IconButton(Icons.CLOSE, icon_color=Colors.WHITE, on_click=lambda _: page_.window.close())
     if not page_.web:
         _mbContainer = Container(
             Row([
@@ -138,9 +137,10 @@ def ui(page_:Page) -> None:
     #status.updateStatus("Ready.")
 
 
-def run() -> None:
+def run(web:bool=False) -> None:
     """ Run program loop """
 
-    # return app(basicDemoUi)
-    #return app(ui)
-    return app(target=ui, view="web_browser", assets_dir="assets", upload_dir="upload", port=8766, host="127.0.0.1")
+    if web:
+        return app(target=ui, view="web_browser", web_renderer="html", assets_dir="assets", upload_dir="upload", port=8766, host="127.0.0.1")
+    
+    return app(target=ui, assets_dir="assets", upload_dir="upload")

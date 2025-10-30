@@ -8,9 +8,14 @@
 # imports
 from flet import Page, Colors
 from db import registry
+from enum import Enum, auto
 
 
 # constants
+class WindowState(Enum):
+    Initial = auto()
+    Changed = auto()
+    Saved = auto()
 
 
 # variables
@@ -21,25 +26,32 @@ def updateWindowTitle(page:Page, title:str=None) -> None:
     if not page:
         return
     
-    # if not title:
-    #     return
-    
     registry.ui.noteTitle.value = f"Notes: {title if title else ''}"
     page.update()
 
 
-def updateWindowState(page: Page, changed: bool=False) -> None:
+def updateWindowState(page: Page, changed: WindowState=WindowState.Initial) -> None:
     if not page:
         return
     
-    if changed:
-        registry.ui.noteTitle.color = Colors.AMBER
-        registry.ui.menubar.style.bgcolor = Colors.RED_600
-        registry.ui.dragBar.bgcolor = Colors.RED_600
-
-    else:
-        registry.ui.noteTitle.color = Colors.BLACK
-        registry.ui.menubar.style.bgcolor = Colors.GREEN_700
-        registry.ui.dragBar.bgcolor = Colors.GREEN_700
-
+    match changed:
+        case WindowState.Changed:
+            registry.ui.noteTitle.color = Colors.AMBER
+            registry.ui.menubar.style.bgcolor = Colors.RED_700
+            registry.ui.dragBar.bgcolor = Colors.RED_700
+            registry.changed = True
+            registry.dirty = True
+        case WindowState.Saved:
+            registry.ui.noteTitle.color = Colors.BLACK
+            registry.ui.menubar.style.bgcolor = Colors.GREEN_700
+            registry.ui.dragBar.bgcolor = Colors.GREEN_700
+            registry.changed = False
+            registry.dirty = False
+        case _:
+            registry.ui.noteTitle.color = Colors.BLACK
+            registry.ui.menubar.style.bgcolor = Colors.BLUE_700
+            registry.ui.dragBar.bgcolor = Colors.BLUE_700
+            registry.changed = False
+            registry.dirty = False
+    
     page.update()

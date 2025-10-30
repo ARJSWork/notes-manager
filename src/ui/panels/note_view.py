@@ -5,7 +5,8 @@
 ###
 
 import re
-import os
+import logging
+from datetime import datetime
 from flet import (
     Checkbox, Column, Text, Row, Colors, Divider, Container, TextField, 
     ScrollMode, ElevatedButton, IconButton, Icons, VerticalAlignment, MainAxisAlignment
@@ -13,10 +14,8 @@ from flet import (
 from db import registry
 from logic.persistence import save_notes
 from logic.log import info
-#from models.notes import DEFAULT_MODULES
+from logic.ui.window import updateWindowState, WindowState
 from ui.controls.custom_menu import CustomMenu
-from datetime import datetime
-import logging
 
 
 def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> Column:
@@ -39,8 +38,8 @@ def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> C
     return Column(
         controls=[header, Divider(), content], expand=True,
         scroll=ScrollMode.AUTO,auto_scroll=True, 
-        #alignment=MainAxisAlignment.START, horizontal_alignment=VerticalAlignment.START
         )
+
 
 def _build_header(page, note_data: dict, title_fallback: str, editing: bool) -> Row:
     """Builds the header section of the note view."""
@@ -72,12 +71,14 @@ def _build_header(page, note_data: dict, title_fallback: str, editing: bool) -> 
 
     return Row(controls=header_content, alignment="spaceBetween")
 
+
 def _build_content(page, note_data: dict, editing: bool) -> Column:
     """Builds the content section of the note view."""
     if editing:
         return _build_edit_view(page, note_data)
     else:
         return _build_display_view(note_data)
+
 
 def _build_display_view(note_data: dict) -> Column:
     """Builds the display view for the note content."""
@@ -154,6 +155,7 @@ def _build_display_view(note_data: dict) -> Column:
         alignment=MainAxisAlignment.START, horizontal_alignment=VerticalAlignment.START
         )
 
+
 def _build_edit_view(page, note_data: dict) -> Column:
     """Builds the edit view for the note content."""
     
@@ -214,6 +216,7 @@ def _build_edit_view(page, note_data: dict) -> Column:
         expand=True
     )
 
+
 def _enter_edit(ev, page, note_data, title_fallback):
     info("Entering edit mode")
     # Debug: show current payload and attached model before entering edit mode
@@ -229,6 +232,7 @@ def _enter_edit(ev, page, note_data, title_fallback):
 
     note_data["_editing"] = True
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
+
 
 def _on_save(ev, page, note_data, title_fallback):
     info("Saving note")
@@ -298,6 +302,7 @@ def _on_save(ev, page, note_data, title_fallback):
 
             # Mark note dirty and persist changed notes
             _no.mark_dirty()
+            updateWindowState(page, WindowState.Changed)
             logging.debug("[DEBUG] _on_save: updated _note_obj to title=%r, topic=%r, date=%r, time=%r, location=%r, participants=%r, notes=%r, todos=%r, updated_at=%r", getattr(_no,'title',None), getattr(_no,'topic',None), getattr(_no,'date',None), getattr(_no,'time',None), getattr(_no,'location',None), getattr(_no,'participants',None), getattr(_no,'notes',None), getattr(_no,'todos',None), getattr(_no,'updated_at',None))
     else:
         info("No _controls found in note_data; skipping save of edits")

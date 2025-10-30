@@ -16,7 +16,7 @@ from logic.persistence import save_notes
 from db.handler import create_default_collection, load_notes_collection
 from db.messages import getError
 from logic.ui import ContentAction, NoteState
-from logic.ui.window import updateWindowState, updateWindowTitle
+from logic.ui.window import updateWindowState, updateWindowTitle, WindowState
 from ui.dialogs import confirm as confirmDialog
 from ui.dialogs import file as fileDialog
 from ui.dialogs import notescollection as notesCollectionDialog
@@ -175,7 +175,7 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             registry.ui.menu.file.close.disabled = False
             registry.changed = True
             updateWindowTitle(page, registry.notesName)
-            updateWindowState(page, registry.changed)
+            updateWindowState(page, WindowState.Changed)
             registry.subjects["contentView"].notify(page, [])
             page.window.to_front()
 
@@ -217,7 +217,7 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             registry.ui.menu.file.close.disabled = False
             registry.changed = False
             updateWindowTitle(page, registry.notesName)
-            updateWindowState(page, registry.changed)
+            updateWindowState(page, WindowState.Saved)
             registry.subjects["contentView"].notify(page, [])
             page.window.to_front()
 
@@ -268,7 +268,7 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             registry.changed = False
             registry.note = None
             updateWindowTitle(page, registry.notesName)
-            updateWindowState(page, registry.changed)
+            updateWindowState(page, WindowState.Initial)
             #notes.clear()
             registry.subjects["contentView"].notify(page, [])
             page.window.to_front()
@@ -303,7 +303,7 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
                 if success:
                     registry.changed = False
                     updateWindowTitle(page, registry.notesName)
-                    updateWindowState(page, registry.changed)
+                    updateWindowState(page, WindowState.Saved)
                     try:
                         # update status bar if present
                         if hasattr(registry, 'ui') and getattr(registry.ui, 'status', None):
@@ -338,4 +338,4 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             registry.ui.menu.file.close.disabled = True
             registry.changed = False
             updateWindowTitle(page, "")
-            updateWindowState(page, registry.changed)
+            updateWindowState(page, WindowState.Changed)

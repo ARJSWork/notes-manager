@@ -36,9 +36,6 @@ def build(**kwargs) -> Row:
         logging.error("Error. No page registered")
         return None
 
-    # _style=ButtonStyle(
-    #     bgcolor={ControlState.HOVERED: Colors.GREY_700},
-    # )
     _style = ButtonStyle(
         bgcolor={ControlState.HOVERED: Colors.GREEN_700},
         shape=RoundedRectangleBorder(radius=1),
@@ -75,9 +72,6 @@ def build(**kwargs) -> Row:
             ),
             _smb := SubmenuButton(
                 content=Text("File"),
-                # on_open=handle_submenu_open,
-                # on_close=handle_submenu_close,
-                # on_hover=handle_submenu_hover,
                 controls=[
                     MenuItemButton(
                         content=Text("New"),
@@ -147,7 +141,6 @@ def build(**kwargs) -> Row:
                 style=_style,
                 #on_click=handle_menu_item_click,
             ),
-            #Container(bgcolor=Colors.RED_700, width=_page.width, content=Text("Test")),
         ],
     )
 
