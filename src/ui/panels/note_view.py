@@ -14,7 +14,7 @@ from flet import (
 from db import registry
 from logic.persistence import save_notes
 from logic.log import info
-from logic.ui.window import updateWindowState, WindowState
+from logic.ui.window import updateWindowTitle, updateWindowState, WindowState
 from ui.controls.custom_menu import CustomMenu
 
 
@@ -137,18 +137,72 @@ def _build_display_view(note_data: dict) -> Column:
         controls.append(Divider())
         controls.append(Text("To Do's", size=16, weight="bold"))
         
-        todo_items = []
+        # Normalize todos into a mutable list of raw lines so we can update them
+        raw_todos = []
         if isinstance(todos_val, list):
-            todo_items = todos_val
+            raw_todos = list(todos_val)
         elif isinstance(todos_val, str):
-            todo_items = todos_val.splitlines()
+            raw_todos = [line for line in todos_val.splitlines()]
 
-        for todo in todo_items:
-            if todo.strip():
-                checked = '[x]' in todo.lower()
-                # Use regex to strip checkbox markers like '- [ ]' or '- [x]'
-                text = re.sub(r'^\s*-\s*\[[xX\s]?\]\s*', '', todo).strip()
-                controls.append(Checkbox(label=text, value=checked, disabled=True))
+        for idx, raw in enumerate(raw_todos):
+            if not raw or not raw.strip():
+                continue
+            checked = '[x]' in raw.lower()
+            # Use regex to strip checkbox markers like '- [ ]' or '- [x]'
+            text = re.sub(r'^\s*-\s*\[[xX\s]?\]\s*', '', raw).strip()
+
+            def _on_todo_change(e, index=idx, label_text=text):
+                try:
+                    new_checked = bool(getattr(e.control, 'value', False))
+                    # Build new raw line with checkbox marker
+                    prefix = '- [x] ' if new_checked else '- [ ] '
+                    new_raw = f"{prefix}{label_text}"
+
+                    # Update the mutable todos list and the note_data
+                    # Ensure we still have a list to modify
+                    current = note_data.get('todos')
+                    if isinstance(current, list):
+                        cur_list = list(current)
+                    elif isinstance(current, str):
+                        cur_list = [line for line in current.splitlines()]
+                    else:
+                        cur_list = raw_todos
+
+                    # Resize if needed
+                    if index >= len(cur_list):
+                        # pad with empty lines up to index
+                        cur_list.extend([''] * (index - len(cur_list) + 1))
+
+                    cur_list[index] = new_raw
+                    note_data['todos'] = cur_list
+
+                    # If there's an attached model object, update it and mark dirty
+                    _no = note_data.get('_note_obj')
+                    if _no is not None:
+                        try:
+                            _no.todos = cur_list
+                            _no.mark_dirty()
+                            registry.dirty = True
+                        except Exception:
+                            logging.exception('Failed to update attached _note_obj todos')
+
+                    # Mark window/app state as changed and re-render the view so title/header updates
+                    try:
+                        updateWindowTitle(e.page, registry.notesName if hasattr(registry, 'notesName') else "")
+                        updateWindowState(e.page, WindowState.Changed)
+                    except Exception:
+                        logging.exception('Failed to update window state')
+
+                    try:
+                        # Rebuild and publish the updated note view so title/status refreshes
+                        registry.subjects['contentView'].notify(e.page, [build_note_view(e.page, note_data, note_data.get('title') or "")])
+                    except Exception:
+                        logging.exception('Failed to notify contentView after todo change')
+                except Exception:
+                    logging.exception('Error handling todo change')
+
+            # Create interactive checkbox (enabled) so the user can toggle
+            controls.append(Checkbox(label=text, value=checked, on_change=_on_todo_change))
 
     return Column(
         controls=controls, expand=True, spacing=10, auto_scroll=True, scroll=ScrollMode.AUTO,
@@ -303,6 +357,7 @@ def _on_save(ev, page, note_data, title_fallback):
             # Mark note dirty and persist changed notes
             _no.mark_dirty()
             updateWindowState(page, WindowState.Changed)
+            updateWindowTitle(page, registry.notesName)
             logging.debug("[DEBUG] _on_save: updated _note_obj to title=%r, topic=%r, date=%r, time=%r, location=%r, participants=%r, notes=%r, todos=%r, updated_at=%r", getattr(_no,'title',None), getattr(_no,'topic',None), getattr(_no,'date',None), getattr(_no,'time',None), getattr(_no,'location',None), getattr(_no,'participants',None), getattr(_no,'notes',None), getattr(_no,'todos',None), getattr(_no,'updated_at',None))
     else:
         info("No _controls found in note_data; skipping save of edits")

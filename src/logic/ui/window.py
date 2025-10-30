@@ -26,7 +26,7 @@ def updateWindowTitle(page:Page, title:str=None) -> None:
     if not page:
         return
     
-    registry.ui.noteTitle.value = f"Notes: {title if title else ''}"
+    registry.ui.noteTitle.value = f"Notes: {'*' if registry.dirty else ''}{title if title else ''}"
     page.update()
 
 
