@@ -16,6 +16,8 @@ from logic.persistence import save_notes
 from logic.log import info
 from logic.ui.window import updateWindowTitle, updateWindowState, WindowState
 from ui.controls.custom_menu import CustomMenu
+from ui.controls.time_selector import TimeSelector
+from ui.controls.date_selector import DateSelector
 
 
 def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> Column:
@@ -182,7 +184,7 @@ def _build_display_view(note_data: dict) -> Column:
                         try:
                             _no.todos = cur_list
                             _no.mark_dirty()
-                            registry.dirty = True
+                            registry.changed = True
                         except Exception:
                             logging.exception('Failed to update attached _note_obj todos')
 
@@ -215,8 +217,10 @@ def _build_edit_view(page, note_data: dict) -> Column:
     
     # Create TextFields for each module
     topic_tf = TextField(label="Topic", value=note_data.get("topic", ""), max_length=50, expand=True)
-    date_tf = TextField(label="Date", value=note_data.get("date", ""), max_length=10, width=120)
-    time_tf = TextField(label="Time", value=note_data.get("time", ""), max_length=5, width=80)
+    # Use DateSelector instead of a plain TextField for date input
+    date_selector = DateSelector(page, initial_date=note_data.get("date", ""))
+    # Use TimeSelector instead of a plain TextField for time input
+    time_selector = TimeSelector(page, initial_time=note_data.get("time", ""))
     
     locations = registry.notes_collection.locations if hasattr(registry, "notes_collection") and registry.notes_collection else ["Online", "Office", "Conference Room"]
     location_menu = CustomMenu(
@@ -244,8 +248,8 @@ def _build_edit_view(page, note_data: dict) -> Column:
     # Store references for saving
     note_data["_controls"] = {
         "Topic": topic_tf,
-        "Date": date_tf,
-        "Time": time_tf,
+        "Date": date_selector,
+        "Time": time_selector,
         "Location": location_menu,
         "Participants": participants_tf,
         "Notes": notes_tf,
@@ -258,8 +262,8 @@ def _build_edit_view(page, note_data: dict) -> Column:
             Row(controls=[topic_tf]),
             Row(
                 controls=[
-                    date_tf,
-                    time_tf,
+                    date_selector,
+                    time_selector,
                     location_menu,
                 ]
             ),
@@ -299,11 +303,37 @@ def _on_save(ev, page, note_data, title_fallback):
         topic_tf = _controls.get("Topic")
         note_data["topic"] = (getattr(topic_tf, "value", "") or "").strip()
 
-        date_tf = _controls.get("Date")
-        note_data["date"] = (getattr(date_tf, "value", "") or "").strip()
+        date_ctl = _controls.get("Date")
+        # DateSelector provides get_value(); fall back to .value for legacy TextField
+        date_val = ""
+        try:
+            if hasattr(date_ctl, "get_value") and callable(getattr(date_ctl, "get_value")):
+                date_val = date_ctl.get_value()
+            else:
+                date_val = getattr(date_ctl, "value", "") or ""
+        except Exception:
+            try:
+                date_val = getattr(date_ctl, "value", "") or ""
+            except Exception:
+                date_val = ""
 
-        time_tf = _controls.get("Time")
-        note_data["time"] = (getattr(time_tf, "value", "") or "").strip()
+        note_data["date"] = (date_val or "").strip()
+
+        time_ctl = _controls.get("Time")
+        # TimeSelector provides get_value(); fall back to .value for legacy TextField
+        time_val = ""
+        try:
+            if hasattr(time_ctl, "get_value") and callable(getattr(time_ctl, "get_value")):
+                time_val = time_ctl.get_value()
+            else:
+                time_val = getattr(time_ctl, "value", "") or ""
+        except Exception:
+            try:
+                time_val = getattr(time_ctl, "value", "") or ""
+            except Exception:
+                time_val = ""
+
+        note_data["time"] = (time_val or "").strip()
 
         # Location: preserve selected custom value and update collection if changed
         location_menu = _controls.get("Location")
@@ -368,7 +398,8 @@ def _on_save(ev, page, note_data, title_fallback):
     # Persist changes back to the attached MeetingNote object if available
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
 
-def _on_cancel(ev, page, note_data, title_fallback):
+
+def _on_cancel(_, page, note_data, title_fallback):
     info("Canceling edit")
     note_data["_editing"] = False
     note_data.pop("_controls", None)  # Remove references to controls
