@@ -26,7 +26,7 @@ def updateWindowTitle(page:Page, title:str=None) -> None:
     if not page:
         return
     
-    registry.ui.noteTitle.value = f"Notes: {'*' if registry.dirty else ''}{title if title else ''}"
+    registry.ui.noteTitle.value = f"Notes: {'*' if registry.changed else ''}{title if title else ''}"
     page.update()
 
 
@@ -40,18 +40,15 @@ def updateWindowState(page: Page, changed: WindowState=WindowState.Initial) -> N
             registry.ui.menubar.style.bgcolor = Colors.RED_700
             registry.ui.dragBar.bgcolor = Colors.RED_700
             registry.changed = True
-            registry.dirty = True
         case WindowState.Saved:
             registry.ui.noteTitle.color = Colors.BLACK
             registry.ui.menubar.style.bgcolor = Colors.GREEN_700
             registry.ui.dragBar.bgcolor = Colors.GREEN_700
             registry.changed = False
-            registry.dirty = False
         case _:
             registry.ui.noteTitle.color = Colors.BLACK
             registry.ui.menubar.style.bgcolor = Colors.BLUE_700
             registry.ui.dragBar.bgcolor = Colors.BLUE_700
             registry.changed = False
-            registry.dirty = False
     
     page.update()
