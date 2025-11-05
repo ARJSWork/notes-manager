@@ -6,10 +6,15 @@
 
 
 # imports
-from flet import app, Control, Page, Row, IconButton, Column, Container, Text, ScrollMode, WindowDragArea, Stack, StackFit
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
-from flet import MainAxisAlignment, Icons, Colors, border, alignment
+
+from flet import (
+    app, alignment, border, Icons, Colors, 
+    Control, Column, Container, 
+    Page, Row, Stack, IconButton, 
+    Text, ScrollMode, WindowDragArea
+)
 from db import register, registry
 from logic.pattern.observer import ObservablesList
 from logic.ui.menu import new_callback, open_callback, save_callback, handle_menu_item_click
@@ -23,12 +28,74 @@ from ui.views import sidebar
 
 
 # functions/classes
+def _handle_keyboard_event(e) -> None:
+    """Central keyboard handler for common shortcuts and keys."""
+    try:
+        logging.info(f"Key event: {getattr(e,'key',None)} data={getattr(e,'data',None)} ctrl={getattr(e,'ctrl_key',False)} meta={getattr(e,'meta_key',False)}")
+        _global = not registry.shortcut_control
+        key = getattr(e, "key", None)
+        k = key.lower()
+        _ctrl_key = getattr(e, "ctrl", False)
+        ctrl_or_cmd = bool(_ctrl_key or getattr(e, "meta", False))
+
+        # Common Ctrl/Cmd shortcuts
+        if _global and ctrl_or_cmd and key:
+            if k == "n" and not registry.ui.menu.file.new.disabled:
+                registry.subjects["ui.menu.file.new"].notify(e)
+            elif k == "o" and not registry.ui.menu.file.open.disabled:
+                registry.subjects["ui.menu.file.open"].notify(e)
+            elif k == "s":
+                registry.subjects["ui.menu.file.save"].notify(e)
+            elif k == "c":
+                registry.subjects["ui.menu.file.close"].notify(e)
+            elif k == "q":
+                registry.subjects["ui.menu.file.quit"].notify(e)
+
+            # mark handled where supported
+            if hasattr(e, "handled"):
+                e.handled = True
+
+            return
+
+        elif _ctrl_key and k:
+            # Check for note-specific keyboard handler
+            if hasattr(registry, "keyboard_handler") and callable(registry.keyboard_handler):
+                registry.keyboard_handler(f"ctrl+{k}")
+                return
+
+        # # Single-key actions
+        # if key == "Escape":
+        #     # Clear content selection / reset content view if present
+        #     if "contentView" in registry.subjects:
+        #         # notify with empty content (matches updateContent signature used elsewhere)
+        #         registry.subjects["contentView"].notify(e.page, [])
+        #     if hasattr(e, "handled"):
+        #         e.handled = True
+        #     return
+
+        # if key == "F1":
+        #     registry.subjects["ui.menu.file.about"].notify(e)
+        #     if hasattr(e, "handled"):
+        #         e.handled = True
+        #     return
+
+    except Exception as ex:
+        logging.exception("Error handling keyboard event: %s", ex)
+
+
 def layout(page_:Page) -> list:
     """Content of the page"""
 
     def updateContent(caller, page, items_:list[Control]) -> None:
         if not _col2:
             return
+
+        if registry.editing:
+            _cont2.bgcolor = Colors.WHITE10
+            _cont2.border = border.all(5, Colors.RED)
+        else:
+            _cont2.bgcolor = Colors.GREY_700
+            _cont2.border = None
 
         _cont2.alignment = alignment.top_center if items_ else alignment.center
         if not items_:
@@ -133,7 +200,7 @@ def ui(page_:Page) -> None:
     page_.add(registry.ui.contentBar)
     #page_.add(register("ui.statusBar", status.build()))
 
-    # Finish up
+    page_.on_keyboard_event = _handle_keyboard_event
     #status.updateStatus("Ready.")
 
 

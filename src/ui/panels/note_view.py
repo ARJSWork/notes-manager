@@ -11,7 +11,7 @@ from flet import (
     Checkbox, Column, Text, Row, Colors, Divider, Container, TextField, 
     ScrollMode, ElevatedButton, IconButton, Icons, VerticalAlignment, MainAxisAlignment
     )
-from db import registry
+from db import registry, register
 from logic.persistence import save_notes
 from logic.log import info
 from logic.ui.window import updateWindowTitle, updateWindowState, WindowState
@@ -214,7 +214,70 @@ def _build_display_view(note_data: dict) -> Column:
 
 def _build_edit_view(page, note_data: dict) -> Column:
     """Builds the edit view for the note content."""
-    
+
+    # Attach a keyboard shortcuts handler while editing so we can handle
+    # note-specific shortcuts (limited to the Notes TextField).
+    def _kbd_handler(key):
+
+        def _mark_changed(_no):
+            _no.mark_dirty()
+            registry.changed = True
+            updateWindowState(page, WindowState.Changed)
+            updateWindowTitle(page, registry.notesName if hasattr(registry, 'notesName') else "")
+            page.update()
+
+        print("KEY EVENT IN EDIT MODE:", key)
+        _no = note_data.get('_note_obj')
+        if _no is None:
+            logging.warning(f'No active note')
+            return
+
+        match key:
+            case "ctrl+v" | "cmd+v":
+                logging.info('Shortcut: Ctrl+V detected (paste from clipboard)')
+                _mark_changed(_no)
+                notes_ctrl = note_data.get('_controls', {}).get('Notes')
+                if notes_ctrl is not None:
+                    notes_ctrl.focused_border_color = None
+                    notes_ctrl.update()
+                return
+            
+            case "ctrl+i" | "cmd+i":
+                logging.info('Shortcut: Ctrl+i detected (insert item)')
+                insert = "\n* "
+                page.set_clipboard(insert)
+                notes_ctrl = note_data.get('_controls', {}).get('Notes')
+                if notes_ctrl is not None:
+                    notes_ctrl.focused_border_color = Colors.RED
+                    notes_ctrl.update()
+
+            case "ctrl+t" | "cmd+t":
+                logging.info('Shortcut: Ctrl+T detected (insert topic)')
+                insert = "\n## Topic: "
+                page.set_clipboard(insert)
+                notes_ctrl = note_data.get('_controls', {}).get('Notes')
+                if notes_ctrl is not None:
+                    notes_ctrl.focused_border_color = Colors.RED
+                    notes_ctrl.update()
+
+            case "ctrl+d" | "cmd+d":
+                logging.info('Shortcut: Ctrl+D detected (insert date)')
+                insert = f"{datetime.now().strftime('%Y-%m-%d')}"
+                page.set_clipboard(insert)
+                notes_ctrl = note_data.get('_controls', {}).get('Notes')
+                if notes_ctrl is not None:
+                    notes_ctrl.focused_border_color = Colors.RED
+                    notes_ctrl.update()
+
+            case "ctrl+e" | "cmd+e":
+                logging.info('Shortcut: Ctrl+E detected (insert time)')
+                insert = f"{datetime.now().strftime('%H:%M')}"
+                page.set_clipboard(insert)
+                notes_ctrl = note_data.get('_controls', {}).get('Notes')
+                if notes_ctrl is not None:
+                    notes_ctrl.focused_border_color = Colors.RED
+                    notes_ctrl.update()
+
     # Create TextFields for each module
     topic_tf = TextField(label="Topic", value=note_data.get("topic", ""), max_length=50, expand=True)
     # Use DateSelector instead of a plain TextField for date input
@@ -239,7 +302,30 @@ def _build_edit_view(page, note_data: dict) -> Column:
         participants_value = str(_participants_raw or "")
 
     participants_tf = TextField(label="Participants", value=participants_value, multiline=True, min_lines=3, max_lines=10)
-    notes_tf = TextField(label="Notes", value=note_data.get("notes", ""), multiline=True, expand=True)
+    # Notes field with focus handlers to help keyboard shortcuts know focus
+    def _notes_on_focus(e):
+        try:
+            registry.shortcut_control = e.control
+            register("keyboard_handler", _kbd_handler)
+        except Exception:
+            logging.exception('Failed to set registry.shortcut_focus on focus')
+
+    def _notes_on_blur(e):
+        try:
+            registry.shortcut_control = None
+        except Exception:
+            logging.exception('Failed to clear registry.shortcut_focus on blur')
+
+    notes_tf = TextField(
+        label="Notes",
+        value=note_data.get("notes", ""),
+        multiline=True,
+        expand=True,
+        on_focus=_notes_on_focus,
+        on_blur=_notes_on_blur,
+    )
+    registry.shortcut_control = None
+
     todos_val = note_data.get("todos", "")
     if isinstance(todos_val, list):
         todos_val = "\n".join(todos_val)
@@ -289,6 +375,9 @@ def _enter_edit(ev, page, note_data, title_fallback):
         logging.exception("[DEBUG] _enter_edit introspect error")
 
     note_data["_editing"] = True
+    registry.editing = True
+
+    # page.on_keyboard_event = _kbd_handler
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
 
 
@@ -296,6 +385,8 @@ def _on_save(ev, page, note_data, title_fallback):
     info("Saving note")
     assert note_data is not None, "note_data is None"
 
+    registry.editing = False
+    register("keyboard_handler", None)
     note_data["_editing"] = False
     _controls = note_data.get("_controls")
     if _controls:
@@ -401,6 +492,8 @@ def _on_save(ev, page, note_data, title_fallback):
 
 def _on_cancel(_, page, note_data, title_fallback):
     info("Canceling edit")
+    registry.editing = False
+    register("keyboard_handler", None)
     note_data["_editing"] = False
     note_data.pop("_controls", None)  # Remove references to controls
     note_data.pop("_editing", None)  # Remove editing flag

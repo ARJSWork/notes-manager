@@ -41,20 +41,12 @@ def handle_menu_item_click(event:str, e:ControlEvent) -> None:
     try:
         assert e.page, getError("U001")
         assert e.control, getError("U002")
-        #assert e.control.content, getError("U003")
 
     except Exception as _e:
         logging.exception("handle_menu_item_click: assertion failed")
         return
     
-    e.page.update()
-
-    _element = e.control.content
-    if _element and isinstance(_element, Icon):
-        logging.debug(f"{event}.{_element.key}.on_click")
-
-    else:
-        logging.debug(f"{event}.on_click")
+    logging.debug(f"{event}.on_action")
 
     match event:
         case "Quit"|"ui.menu.file.quit":
@@ -76,21 +68,18 @@ def handle_menu_item_click(event:str, e:ControlEvent) -> None:
 
 
 def new_callback(event:str, e:ControlEvent) -> None:
-    """Open a file"""
+    """New notes collection"""
     
     try:
         assert e.page, getError("U001")
         assert e.control, getError("U002")
-        assert e.control.content, getError("U003")
 
     except Exception as _e:
-        logging.exception("new_callback: assertion failed")
+        logging.exception("handle_menu_item_click: assertion failed")
         return
 
     e.page.update()
-
-    _element = e.control.content
-    logging.debug(f"{_element.value}.on_click")
+    logging.debug(f"{event}.on_click")
 
     # Rufe den Open File Dialog auf
     notesCollectionDialog.show(e.page, setMenuState, MenuState.NEW)
@@ -102,16 +91,13 @@ def open_callback(event:str, e:ControlEvent) -> None:
     try:
         assert e.page, getError("U001")
         assert e.control, getError("U002")
-        assert e.control.content, getError("U003")
 
     except Exception as _e:
         logging.exception("open_callback: assertion failed")
         return
 
     e.page.update()
-
-    _element = e.control.content
-    logging.debug(f"{_element.value}.on_click")
+    logging.debug(f"{event}.on_click")
 
     # Rufe den Open File Dialog auf
     fileDialog.showOpenCollection(e.page, setMenuState, MenuState.OPENED)
@@ -123,40 +109,34 @@ def save_callback(event:str, e: ControlEvent) -> None:
     try:
         assert e.page, getError("U001")
         assert e.control, getError("U002")
-        assert e.control.content, getError("U003")
 
     except Exception as _e:
-        logging.exception("save_callback: assertion failed")
+        logging.exception("handle_menu_item_click: assertion failed")
         return
 
     e.page.update()
-
-    _element = e.control.content
-    logging.debug(f"{_element.value}.on_click")
+    logging.debug(f"{event}.on_click")
 
     # Rufe den Open File Dialog auf
     setMenuState(e.page, MenuState.SAVED)
 
 
-def saveAsCallback(event:str, e: ControlEvent) -> None:
-    """Save a file"""
+# def saveAsCallback(event:str, e: ControlEvent) -> None:
+#     """Save a file"""
 
-    try:
-        assert e.page, getError("U001")
-        assert e.control, getError("U002")
-        assert e.control.content, getError("U003")
+#     try:
+#         assert e.page, getError("U001")
+#         assert e.control.content, getError("U003")
 
-    except Exception as _e:
-        logging.exception("saveAsCallback: assertion failed")
-        return
+#     except Exception as _e:
+#         logging.exception("saveAsCallback: assertion failed")
+#         return
 
-    e.page.update()
+#     e.page.update()
+#     logging.debug(f"{event}.on_click")
 
-    _element = e.control.content
-    logging.debug(f"{_element.value}.on_click")
-
-    # Rufe den Open File Dialog auf
-    fileDialog.showSave(e.page, setMenuState, MenuState.SAVED)
+#     # Rufe den Open File Dialog auf
+#     fileDialog.showSave(e.page, setMenuState, MenuState.SAVED)
 
 
 def setMenuState(page:Page, state_:MenuState=None) -> None:
@@ -299,29 +279,36 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
 
         case MenuState.SAVED:
             if registry.notes_collection:
-                success, msg = save_notes(registry.notes_collection, DATA_ROOT)
-                if success:
-                    registry.changed = False
-                    updateWindowTitle(page, registry.notesName)
-                    updateWindowState(page, WindowState.Saved)
-                    try:
-                        # update status bar if present
-                        if hasattr(registry, 'ui') and getattr(registry.ui, 'status', None):
-                            registry.ui.status.current.value = "Save succeeded"
-                            registry.ui.status.current.update()
-                    except Exception:
-                        pass
-                    logging.info(msg)
-                else:
-                    try:
-                        if hasattr(registry, 'ui') and getattr(registry.ui, 'status', None):
-                            registry.ui.status.current.value = f"Save failed: {msg}"
-                            registry.ui.status.current.update()
-                    except Exception:
-                        pass
-                    logging.error(f"Save failed: {msg}")
+                logging.warning("No collection loaded to save.")
+                return
+
+            if registry.changed:
+                logging.warning("No changes to save.")
+                return
+
+            success, msg = save_notes(registry.notes_collection, DATA_ROOT)
+            if success:
+                registry.changed = False
+                updateWindowTitle(page, registry.notesName)
+                updateWindowState(page, WindowState.Saved)
+                try:
+                    # update status bar if present
+                    if hasattr(registry, 'ui') and getattr(registry.ui, 'status', None):
+                        registry.ui.status.current.value = "Save succeeded"
+                        registry.ui.status.current.update()
+                except Exception:
+                    pass
+                
+                logging.info(msg)
             else:
-                logging.error("Error: No collection loaded to save.")
+                try:
+                    if hasattr(registry, 'ui') and getattr(registry.ui, 'status', None):
+                        registry.ui.status.current.value = f"Save failed: {msg}"
+                        registry.ui.status.current.update()
+                except Exception:
+                    pass
+
+                logging.error(f"Save failed: {msg}")
             
             # Re-enable menu items
             registry.ui.menu.file.new.disabled = True
