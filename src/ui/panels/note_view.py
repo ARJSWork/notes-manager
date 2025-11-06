@@ -236,27 +236,31 @@ def _build_edit_view(page, note_data: dict) -> Column:
             case "ctrl+v" | "cmd+v":
                 logging.info('Shortcut: Ctrl+V detected (paste from clipboard)')
                 _mark_changed(_no)
+                page.set_clipboard("")
                 notes_ctrl = note_data.get('_controls', {}).get('Notes')
                 if notes_ctrl is not None:
+                    notes_ctrl.label = "Notes (ctl+h > Header, ctl+i > Item, ctl+d > Date, ctl+t > Time)"
                     notes_ctrl.focused_border_color = None
                     notes_ctrl.update()
                 return
             
+            case "ctrl+h" | "cmd+h":
+                logging.info('Shortcut: Ctrl+h detected (insert topic)')
+                insert = "\n## Topic: "
+                page.set_clipboard(insert)
+                notes_ctrl = note_data.get('_controls', {}).get('Notes')
+                if notes_ctrl is not None:
+                    notes_ctrl.label = "Notes: ## Topic (ctl+v > Paste)"
+                    notes_ctrl.focused_border_color = Colors.RED
+                    notes_ctrl.update()
+
             case "ctrl+i" | "cmd+i":
                 logging.info('Shortcut: Ctrl+i detected (insert item)')
                 insert = "\n* "
                 page.set_clipboard(insert)
                 notes_ctrl = note_data.get('_controls', {}).get('Notes')
                 if notes_ctrl is not None:
-                    notes_ctrl.focused_border_color = Colors.RED
-                    notes_ctrl.update()
-
-            case "ctrl+t" | "cmd+t":
-                logging.info('Shortcut: Ctrl+T detected (insert topic)')
-                insert = "\n## Topic: "
-                page.set_clipboard(insert)
-                notes_ctrl = note_data.get('_controls', {}).get('Notes')
-                if notes_ctrl is not None:
+                    notes_ctrl.label = "Notes: * (ctl+v > Paste)"
                     notes_ctrl.focused_border_color = Colors.RED
                     notes_ctrl.update()
 
@@ -266,17 +270,30 @@ def _build_edit_view(page, note_data: dict) -> Column:
                 page.set_clipboard(insert)
                 notes_ctrl = note_data.get('_controls', {}).get('Notes')
                 if notes_ctrl is not None:
+                    notes_ctrl.label = "Notes: " + insert + " (ctl+v > Paste)"
                     notes_ctrl.focused_border_color = Colors.RED
                     notes_ctrl.update()
 
-            case "ctrl+e" | "cmd+e":
-                logging.info('Shortcut: Ctrl+E detected (insert time)')
+            case "ctrl+t" | "cmd+t":
+                logging.info('Shortcut: Ctrl+t detected (insert time)')
                 insert = f"{datetime.now().strftime('%H:%M')}"
                 page.set_clipboard(insert)
                 notes_ctrl = note_data.get('_controls', {}).get('Notes')
                 if notes_ctrl is not None:
+                    notes_ctrl.label = "Notes: " + insert + " (ctl+v > Paste)"
                     notes_ctrl.focused_border_color = Colors.RED
                     notes_ctrl.update()
+
+            case "ctrl+numpad add" | "cmd+numpad add" | "ctrl+plus" | "cmd+plus" | "ctrl+#" | "cmd+#":
+                logging.info('Shortcut: Ctrl+# detected (insert task)')
+                todos_ctrl = note_data.get('_controls', {}).get('ToDos')
+                if todos_ctrl is not None:
+                    _clip = page.get_clipboard() or ""
+                    todos = todos_ctrl.value.splitlines()
+                    todos.append(f"- [ ] Task {len(todos) + 1}: {_clip}")
+                    page.set_clipboard(f" (Task {len(todos)})")
+                    todos_ctrl.value = "\n".join(todos)
+                    todos_ctrl.update()
 
     # Create TextFields for each module
     topic_tf = TextField(label="Topic", value=note_data.get("topic", ""), max_length=50, expand=True)
@@ -317,7 +334,7 @@ def _build_edit_view(page, note_data: dict) -> Column:
             logging.exception('Failed to clear registry.shortcut_focus on blur')
 
     notes_tf = TextField(
-        label="Notes",
+        label="Notes (ctl+h > Header, ctl+i > Item, ctl+d > Date, ctl+t > Time, ctl+# > Task)",
         value=note_data.get("notes", ""),
         multiline=True,
         expand=True,
