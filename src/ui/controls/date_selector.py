@@ -49,7 +49,7 @@ class DateSelector(ft.Row):
                     if yyyy is not None and mm is not None and dd is not None:
                         self.date_field.value = f"{int(yyyy):04d}-{int(mm):02d}-{int(dd):02d}"
                         self.date_field.update()
-                        registry.changed = True
+                        #registry.changed = True
 
             except Exception:
                 pass

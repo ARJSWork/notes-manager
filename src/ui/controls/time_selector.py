@@ -48,7 +48,7 @@ class TimeSelector(ft.Row):
                     if h is not None and m is not None:
                         self.time_field.value = f"{int(h):02d}:{int(m):02d}"
                         self.time_field.update()
-                        registry.changed = True
+                        #registry.changed = True
             except Exception:
                 pass
 
