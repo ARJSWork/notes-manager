@@ -239,7 +239,7 @@ def _build_edit_view(page, note_data: dict) -> Column:
                 page.set_clipboard("")
                 notes_ctrl = note_data.get('_controls', {}).get('Notes')
                 if notes_ctrl is not None:
-                    notes_ctrl.label = "Notes (ctl+h > Header, ctl+i > Item, ctl+d > Date, ctl+t > Time)"
+                    notes_ctrl.label = "Notes: ctl+h > Header, ctl+i > Item, ctl+d > Date, ctl+t > Time & ctl+v > Paste; ctl+'+' > Task)"
                     notes_ctrl.focused_border_color = None
                     notes_ctrl.update()
                 return
@@ -334,7 +334,7 @@ def _build_edit_view(page, note_data: dict) -> Column:
             logging.exception('Failed to clear registry.shortcut_focus on blur')
 
     notes_tf = TextField(
-        label="Notes (ctl+h > Header, ctl+i > Item, ctl+d > Date, ctl+t > Time, ctl+# > Task)",
+        label="Notes: ctl+h > Header, ctl+i > Item, ctl+d > Date, ctl+t > Time & ctl+v > Paste; ctl+'+' > Task)",
         value=note_data.get("notes", ""),
         multiline=True,
         expand=True,

@@ -16,8 +16,8 @@ DEFAULT_TEMPLATES = {
     "Quick": {
         "modules": ["Topic", "Date", "Time", "Participants", "Location", "Notes", "ToDos"],
         "Participants": ["Alex S"],
-        "Notes": ["# Topic 1", "- Subtopic 1", "- Subtopic 2", "# Topic 2"],
-        "ToDos": ["- [ ] Task 1", "- [ ] Task 2"]
+        "Notes": [],
+        "ToDos": []
     }
 }
 
