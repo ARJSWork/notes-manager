@@ -4,6 +4,7 @@
 # Author: Gemini
 ###
 
+import logging
 from flet import (
     AlertDialog, 
     alignment,
@@ -21,9 +22,8 @@ from flet import (
     Row,
     Text,
     TextField, 
+    RadioGroup, Radio
 )
-from flet import RadioGroup, Radio
-import logging
 from db import registry, register
 from models.notes import DEFAULT_CATEGORIES, DEFAULT_MODULES, DEFAULT_TEMPLATES
 from ui.dialogs import meeting_notes, confirm as confirm_dialog
@@ -52,10 +52,7 @@ def create_panel_header(title: str, page, enabled: bool = False, add_callback=No
 
     def _add_on_click(e):
         logging.debug(f"header.add clicked for {title}")
-        try:
-            add_action(e)
-        except Exception as ex:
-            logging.exception(f"header.add action error for {title}")
+        add_action(e)
 
     add_btn = IconButton(Icons.ADD_CIRCLE_OUTLINE, on_click=_add_on_click, disabled=add_button_disabled)
     edit_btn = IconButton(Icons.EDIT_OUTLINED, on_click=(edit_callback if edit_callback else (lambda e: logging.debug(f"Edit {title}"))), disabled=edit_delete_disabled)
@@ -81,6 +78,83 @@ def create_panel_header(title: str, page, enabled: bool = False, add_callback=No
     )
 
 
+# append as a selectable ListTile and register selection
+def _on_click(e, item=None):
+    # Deselect if already selected
+    if getattr(item, "_is_selected", False):
+        item._is_selected = False
+        item.selected = False
+        registry.ui.sidebar.MeetingNotes.edit.disabled = True
+        registry.ui.sidebar.MeetingNotes.delete.disabled = True
+        registry.subjects["contentView"].notify(e.page, [])
+        e.page.update()
+        return
+
+    # Select this item and clear others
+    meeting_list = registry.ui.sidebar.MeetingNotes.list
+    for c in meeting_list.controls:
+        c._is_selected = False
+        c.selected = False
+
+    item._is_selected = True
+    item.selected = True
+    registry.ui.sidebar.MeetingNotes.edit.disabled = False
+    registry.ui.sidebar.MeetingNotes.delete.disabled = False
+
+    title = getattr(item, "title", None) or "Untitled"
+    # Update main content for this note using centralized renderer
+    try:
+        nd = getattr(item, "note_data", None) or {}
+        # Ensure the note_data has an attached MeetingNote object so
+        # edits can sync back to the model. If not present, try to
+        # reconstruct one from the metadata and add to the in-memory
+        # collection (best-effort).
+        try:
+            if not nd.get('_note_obj') and hasattr(registry, 'notes_collection') and registry.notes_collection is not None:
+                from models.notes import MeetingNote
+                # Avoid creating duplicates: look for an existing note with same title+date
+                existing = None
+                for n in registry.notes_collection.notes:
+                    if getattr(n, 'title', None) == nd.get('title') and getattr(n, 'date', None) == nd.get('date'):
+                        existing = n
+                        break
+
+                if existing:
+                    nd['_note_obj'] = existing
+                else:
+                    parts = nd.get('participants') or ""
+                    if isinstance(parts, list):
+                        plist = parts
+                    else:
+                        plist = [p.strip() for p in str(parts).splitlines() if p.strip()]
+
+                    note_obj = MeetingNote(
+                        title=nd.get('title') or title,
+                        category=nd.get('category', ''),
+                        tags=nd.get('tags', []) or [],
+                        content=nd.get('body') or nd.get('content') or "",
+                        topic=nd.get('topic') or "Meeting Note",
+                        date=nd.get('date'),
+                        time=nd.get('time'),
+                        location=nd.get('location'),
+                        participants=plist,
+                        notes=nd.get('notes') or "",
+                        todos=nd.get('todos') or [],
+                        created_at=nd.get('created_at')
+                    )
+                    registry.notes_collection.notes.append(note_obj)
+                    nd['_note_obj'] = note_obj
+        except Exception:
+            pass
+
+        col = build_note_view(e.page, nd, title_fallback=title)
+        registry.subjects["contentView"].notify(e.page, [col])
+    except Exception:
+        pass
+
+    e.page.update()
+
+
 def populate_meeting_notes(page: Page, collection=None):
     """Populate the MeetingNotes ListView from a NotesCollection.
 
@@ -96,10 +170,7 @@ def populate_meeting_notes(page: Page, collection=None):
 
         lv = meeting_ns.list
         # clear existing entries
-        try:
-            lv.controls.clear()
-        except Exception:
-            pass
+        lv.controls.clear()
 
         notes = coll.notes if coll and getattr(coll, 'notes', None) is not None else []
 
@@ -122,30 +193,7 @@ def populate_meeting_notes(page: Page, collection=None):
                 lt = ListTile(title=Text(nd.get('title') or "Untitled"), selected=False)
                 lt.note_data = nd
                 lt._is_selected = False
-
-                def _on_click(e, item=lt):
-                    # selection logic: clear others and select this
-                    try:
-                        for c in lv.controls:
-                            try:
-                                c._is_selected = False
-                                c.selected = False
-                            except Exception:
-                                pass
-                        item._is_selected = True
-                        item.selected = True
-                        try:
-                            registry.ui.sidebar.MeetingNotes.edit.disabled = False
-                            registry.ui.sidebar.MeetingNotes.delete.disabled = False
-                        except Exception:
-                            pass
-                        nd_local = getattr(item, 'note_data', {}) or {}
-                        col = build_note_view(e.page, nd_local, title_fallback=nd_local.get('title'))
-                        registry.subjects['contentView'].notify(e.page, [col])
-                    except Exception:
-                        logging.exception('Error handling sidebar note click')
-
-                lt.on_click = _on_click
+                lt.on_click = lambda e, item=lt: _on_click(e, item=item)
                 lv.controls.append(lt)
             except Exception:
                 logging.exception('Error adding note to sidebar list')
@@ -162,13 +210,11 @@ def populate_meeting_notes(page: Page, collection=None):
         except Exception:
             logging.exception('Error auto-selecting first note in sidebar')
 
-        try:
-            page.update()
-        except Exception:
-            pass
+        page.update()
 
     except Exception:
         logging.exception('Failed to populate MeetingNotes')
+
 
 def build(page: Page):
     """Builds the sidebar with collapsible list elements.
@@ -189,15 +235,9 @@ def build(page: Page):
         val = getattr(e.control, "value", None)
         register("ui.sidebar.Templates.selected", val)
         # Enable edit/delete only when a selection exists
-        try:
-            registry.ui.sidebar.Templates.edit.disabled = False if val else True
-            registry.ui.sidebar.Templates.delete.disabled = False if val else True
-        except Exception:
-            pass
-        try:
-            page.update()
-        except Exception:
-            pass
+        registry.ui.sidebar.Templates.edit.disabled = False if val else True
+        registry.ui.sidebar.Templates.delete.disabled = False if val else True
+        page.update()
 
     templates_group = RadioGroup(
         content=Column([Radio(value=t, label=t) for t in DEFAULT_TEMPLATES.keys()]),
@@ -212,20 +252,6 @@ def build(page: Page):
     meeting_list = ListView(controls=[], spacing=5, height=200)
     register("ui.sidebar.MeetingNotes.list", meeting_list)
 
-
-    # def _meeting_on_select(e):
-    #     # e.control likely is a ListTile or similar; find selected index
-    #     # For now, enable edit/delete when any item is clicked
-    #     try:
-    #         registry.ui.sidebar.MeetingNotes.edit.disabled = False
-    #         registry.ui.sidebar.MeetingNotes.delete.disabled = False
-    #     except Exception:
-    #         pass
-    #     try:
-    #         page.update()
-    #     except Exception:
-    #         pass
-
     def _meeting_add(page_ref):
         # open meeting_notes dialog and append created note
         logging.debug("sidebar: meeting_add called")
@@ -236,106 +262,6 @@ def build(page: Page):
                 return
 
             title = data.get("title") or "New Note"
-            # append as a selectable ListTile and register selection
-            def _on_click(e, item=None):
-                # Deselect if already selected
-                if getattr(item, "_is_selected", False):
-                    try:
-                        item._is_selected = False
-                    except Exception:
-                        pass
-                    try:
-                        item.selected = False
-                    except Exception:
-                        pass
-                    try:
-                        registry.ui.sidebar.MeetingNotes.edit.disabled = True
-                        registry.ui.sidebar.MeetingNotes.delete.disabled = True
-                    except Exception:
-                        pass
-                    try:
-                        registry.subjects["contentView"].notify(p, [])
-                    except Exception:
-                        pass
-                    try:
-                        p.update()
-                    except Exception:
-                        pass
-                    return
-
-                # Select this item and clear others
-                for c in meeting_list.controls:
-                    try:
-                        c._is_selected = False
-                        c.selected = False
-                    except Exception:
-                        pass
-                try:
-                    item._is_selected = True
-                    item.selected = True
-                except Exception:
-                    pass
-                try:
-                    registry.ui.sidebar.MeetingNotes.edit.disabled = False
-                    registry.ui.sidebar.MeetingNotes.delete.disabled = False
-                except Exception:
-                    pass
-
-                # Update main content for this note using centralized renderer
-                try:
-                    nd = getattr(item, "note_data", None) or {}
-                    # Ensure the note_data has an attached MeetingNote object so
-                    # edits can sync back to the model. If not present, try to
-                    # reconstruct one from the metadata and add to the in-memory
-                    # collection (best-effort).
-                    try:
-                        if not nd.get('_note_obj') and hasattr(registry, 'notes_collection') and registry.notes_collection is not None:
-                            from models.notes import MeetingNote
-                            # Avoid creating duplicates: look for an existing note with same title+date
-                            existing = None
-                            for n in registry.notes_collection.notes:
-                                if getattr(n, 'title', None) == nd.get('title') and getattr(n, 'date', None) == nd.get('date'):
-                                    existing = n
-                                    break
-                            if existing:
-                                nd['_note_obj'] = existing
-                            else:
-                                parts = nd.get('participants') or ""
-                                if isinstance(parts, list):
-                                    plist = parts
-                                else:
-                                    plist = [p.strip() for p in str(parts).splitlines() if p.strip()]
-
-                                note_obj = MeetingNote(
-                                    title=nd.get('title') or title,
-                                    category=nd.get('category', ''),
-                                    tags=nd.get('tags', []) or [],
-                                    content=nd.get('body') or nd.get('content') or "",
-                                    topic=nd.get('topic') or "Meeting Note",
-                                    date=nd.get('date'),
-                                    time=nd.get('time'),
-                                    location=nd.get('location'),
-                                    participants=plist,
-                                    notes=nd.get('notes') or "",
-                                    todos=nd.get('todos') or [],
-                                    created_at=nd.get('created_at')
-                                )
-                                registry.notes_collection.notes.append(note_obj)
-                                nd['_note_obj'] = note_obj
-                    except Exception:
-                        pass
-
-                    col = build_note_view(p, nd, title_fallback=title)
-                    try:
-                        registry.subjects["contentView"].notify(p, [col])
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-                try:
-                    p.update()
-                except Exception:
-                    pass
 
             # Create the ListTile and append
             lt = ListTile(title=Text(title), selected=False)
@@ -346,11 +272,9 @@ def build(page: Page):
             # Auto-select the newly created item
             try:
                 for c in meeting_list.controls:
-                    try:
-                        c._is_selected = False
-                        c.selected = False
-                    except Exception:
-                        pass
+                    c._is_selected = False
+                    c.selected = False
+
                 lt._is_selected = True
                 lt.selected = True
 
@@ -382,7 +306,6 @@ def build(page: Page):
                 page_ref.update()
             except Exception as _e:
                 logging.exception("sidebar: meeting_add auto-select error")
-                pass
 
         # Call the meeting notes dialog (no test dialog / fallback) so the
         # user interacts with the real dialog and its OK handler can fire.
@@ -406,23 +329,11 @@ def build(page: Page):
                 return
 
             def _do_delete():
-                try:
-                    meeting_list.controls.remove(sel)
-                except Exception:
-                    pass
-                try:
-                    registry.ui.sidebar.MeetingNotes.edit.disabled = True
-                    registry.ui.sidebar.MeetingNotes.delete.disabled = True
-                except Exception:
-                    pass
-                try:
-                    registry.subjects["contentView"].notify(page, [])
-                except Exception:
-                    pass
-                try:
-                    page.update()
-                except Exception:
-                    pass
+                meeting_list.controls.remove(sel)
+                registry.ui.sidebar.MeetingNotes.edit.disabled = True
+                registry.ui.sidebar.MeetingNotes.delete.disabled = True
+                registry.subjects["contentView"].notify(page, [])
+                page.update()
 
             confirm_dialog.show(page, _do_delete)
         except Exception as ex:
