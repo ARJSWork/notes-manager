@@ -21,7 +21,10 @@ class Registry:
         self._data = {}
 
     def __getattr__(self, name):
-        return self._data.get(name)
+        try:
+            return self._data.get(name, None)
+        except KeyError:
+            return None
 
     def __setattr__(self, name, value):
         if name == "_data":
