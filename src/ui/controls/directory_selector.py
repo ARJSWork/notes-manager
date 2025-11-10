@@ -110,11 +110,9 @@ class DirectorySelector(ft.Column):
     def cancel_clicked(self, e):
         """Handles the click event of the cancel button."""
         # Inform caller with empty info and close
-        try:
-            if callable(self.on_select_callback):
-                self.on_select_callback({})
-        except Exception:
-            pass
+        if callable(self.on_select_callback):
+            self.on_select_callback({})
+
         self.page.close(self.dialog)
         self.page.update()
 
@@ -124,8 +122,5 @@ class DirectorySelector(ft.Column):
         if self.selected_path:
             self.page.close(self.dialog)
             self.page.update()
-            try:
-                if callable(self.on_select_callback):
-                    self.on_select_callback(self.selected_path)
-            except Exception:
-                pass
+            if callable(self.on_select_callback):
+                self.on_select_callback(self.selected_path)

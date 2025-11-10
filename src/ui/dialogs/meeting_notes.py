@@ -13,7 +13,6 @@ from flet import (
     Colors,
     TextField,
     DatePicker,
-    Dropdown,
     ElevatedButton,
     ListView,
     Page,
@@ -21,8 +20,7 @@ from flet import (
     RadioGroup,
     Row,
     Text,
-    dropdown,
-    ScrollMode,
+    Icons
 )
 from models.notes import DEFAULT_TEMPLATES, DEFAULT_MODULES
 from db import registry
@@ -44,15 +42,6 @@ def show(page: Page, callback: callable, state: str = None):
             except Exception:
                 selected_date.value = str(val)
         page.update()
-
-    date_picker = DatePicker(
-        first_date=datetime(2023, 1, 1),
-        last_date=datetime(2030, 12, 31),
-        date_picker_entry_mode="CALENDAR_ONLY",
-        date_picker_mode="DAY",
-        help_text="Select a date",
-        on_change=on_date_selected,
-    )
 
     # Template and module selectors
     template_title = Text("Templates", visible=True)
@@ -250,7 +239,21 @@ def show(page: Page, callback: callable, state: str = None):
             [
                 Row([
                     selected_date,
-                    ElevatedButton("Select Date", on_click=lambda _: page.open(date_picker)),
+                    ElevatedButton(
+                        "Pick date",
+                        icon=Icons.CALENDAR_MONTH,
+                        on_click=lambda e: page.open(
+                            DatePicker(
+                                first_date=datetime(2023, 1, 1),
+                                last_date=datetime(2030, 12, 31),
+                                date_picker_entry_mode="CALENDAR_ONLY",
+                                date_picker_mode="DAY",
+                                help_text="Select a date",
+                                on_change=on_date_selected,
+                                #on_dismiss=handle_dismissal,
+                            )
+                        ),
+                    )
                 ]),
                 RadioGroup(
                     content=Row([
@@ -266,7 +269,6 @@ def show(page: Page, callback: callable, state: str = None):
                 module_list,
                 # Inline editable fields for note content
                 topic_field,
-                Row(controls=[date_picker, time_field]),
                 location_field,
                 participants_field,
                 notes_field,
