@@ -1,6 +1,6 @@
 AGENTS/Memory for Notes Manager
 Saved: 2025-09-08
-Git commit: 17d22db
+Git commit: 3e16008
 
 Summary of recent work
 - Sidebar gating: sidebar hidden/disabled until a notes collection is New/Open. Registered container at `ui.sidebar.container`.
@@ -80,7 +80,7 @@ Notes / gotchas
 - Rename/Delete/Copy handlers are enabled/disabled correctly in the UI, but full file-operation implementations need follow-up work and testing.
 
 Commit
-- Pending: commit will be created representing these documentation updates and small fixes. After commit the `Git commit` line will be updated with the new hash.
+- 3e16008: "docs: update TODO/BUGS/AGENTS after meeting-notes & UI refactor — interactive todos, date/time selectors, drawer subject, sidebar auto-collapse/reopen, keyboard shortcuts"
 
 Files changed (important)
 - src/ui/panels/note_view.py (main implementation of edit/display views)
