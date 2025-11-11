@@ -278,11 +278,11 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             page.update()
 
         case MenuState.SAVED:
-            if registry.notes_collection:
+            if not registry.notes_collection:
                 logging.warning("No collection loaded to save.")
                 return
 
-            if registry.changed:
+            if not registry.changed:
                 logging.warning("No changes to save.")
                 return
 
