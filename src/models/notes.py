@@ -92,7 +92,7 @@ class MeetingNote:
         tags = data.get("tags", []) or []
 
         # content may be called 'content' or fallback to 'body'
-        content = data.get("content", data.get("body", ""))
+        # content = data.get("content", data.get("body", ""))
 
         topic = data.get("topic") or data.get("Topic")
         date = data.get("date") or data.get("Date")
@@ -121,7 +121,7 @@ class MeetingNote:
             title=title,
             category=category,
             tags=list(tags),
-            content=content,
+            #content=content,
             topic=topic,
             date=date,
             time=time,

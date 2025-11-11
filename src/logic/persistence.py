@@ -147,8 +147,18 @@ def update_notes(collection: NotesCollection, collection_path: str = None, check
 def _serialize_note_for_write(note: MeetingNote) -> dict:
     """Return a dict representation of a MeetingNote for JSON writing."""
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
-    content_value = note.notes or (note.content if isinstance(note.content, str) else "")
+    notes = getattr(note, 'notes', None) or None
+    if notes is None:
+        _notes = []
+    else:
+        _notes = notes.splitlines()
+
     todos = note.todos or []
+    if todos is None:
+        _todos = []
+    else:
+        _todos = _todos.splitlines()
+
     return {
         "title": note.title,
         "created_at": note.created_at,
@@ -158,9 +168,8 @@ def _serialize_note_for_write(note: MeetingNote) -> dict:
         "time": getattr(note, 'time', None) or None,
         "location": getattr(note, 'location', None) or None,
         "participants": [p for p in (getattr(note, 'participants', []) or [])],
-        "notes": getattr(note, 'notes', None) or None,
+        "notes": _notes, 
         "todos": todos,
-        "content": content_value,
     }
 
 
