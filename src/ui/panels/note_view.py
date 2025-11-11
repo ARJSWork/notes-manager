@@ -129,10 +129,11 @@ def _build_display_view(note_data: dict) -> Column:
 
     # Notes
     notes_val = note_data.get("notes", "")
-    if notes_val:
-        controls.append(Divider())
-        controls.append(Text("Notes", size=16, weight="bold"))
-        controls.append(Container(content=Text(notes_val), expand=False))
+    if isinstance(notes_val, list):
+        notes_val = "\n".join(notes_val)
+    controls.append(Divider())
+    controls.append(Text("Notes", size=16, weight="bold"))
+    controls.append(Container(content=Text(notes_val), expand=False))
 
     # ToDos
     todos_val = note_data.get("todos", "")
@@ -220,12 +221,12 @@ def _build_edit_view(page, note_data: dict) -> Column:
     # note-specific shortcuts (limited to the Notes TextField).
     def _kbd_handler(key):
 
-        def _mark_changed(_no):
-            _no.mark_dirty()
-            registry.changed = True
-            updateWindowState(page, WindowState.Changed)
-            updateWindowTitle(page, registry.notesName if hasattr(registry, 'notesName') else "")
-            page.update()
+        # def _mark_changed(_no):
+        #     _no.mark_dirty()
+        #     registry.changed = True
+        #     updateWindowState(page, WindowState.Changed)
+        #     updateWindowTitle(page, registry.notesName if hasattr(registry, 'notesName') else "")
+        #     page.update()
 
         print("KEY EVENT IN EDIT MODE:", key)
         _no = note_data.get('_note_obj')
@@ -233,6 +234,7 @@ def _build_edit_view(page, note_data: dict) -> Column:
             logging.warning(f'No active note')
             return
 
+        _len = len(note_data["notes"])
         match key:
             case "ctrl+v" | "cmd+v":
                 logging.info('Shortcut: Ctrl+v detected (paste from clipboard)')
@@ -247,7 +249,8 @@ def _build_edit_view(page, note_data: dict) -> Column:
             
             case "ctrl+h" | "cmd+h":
                 logging.info('Shortcut: Ctrl+h detected (insert topic)')
-                insert = "\n## Topic: "
+                insert = "\n" if _len > 0 else "" 
+                insert += "## Topic: "
                 page.set_clipboard(insert)
                 notes_ctrl = note_data.get('_controls', {}).get('Notes')
                 if notes_ctrl is not None:
@@ -267,7 +270,7 @@ def _build_edit_view(page, note_data: dict) -> Column:
 
             case "ctrl+i" | "cmd+i":
                 logging.info('Shortcut: Ctrl+i detected (insert item)')
-                insert = "\n* "
+                insert = "\n- "
                 page.set_clipboard(insert)
                 notes_ctrl = note_data.get('_controls', {}).get('Notes')
                 if notes_ctrl is not None:
@@ -344,9 +347,12 @@ def _build_edit_view(page, note_data: dict) -> Column:
         except Exception:
             logging.exception('Failed to clear registry.shortcut_focus on blur')
 
+    notes_val = note_data.get("notes", "")
+    if isinstance(notes_val, list):
+        notes_val = "\n".join(notes_val)
     notes_tf = TextField(
         label=SHORTCUT_KEYS,
-        value=note_data.get("notes", ""),
+        value=notes_val,
         multiline=True,
         expand=True,
         on_focus=_notes_on_focus,
