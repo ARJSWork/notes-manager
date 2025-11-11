@@ -19,6 +19,7 @@ from ui.controls.custom_menu import CustomMenu
 from ui.controls.time_selector import TimeSelector
 from ui.controls.date_selector import DateSelector
 
+SHORTCUT_KEYS = "Notes: ctl+h > Header, ctl+b > Bulletpoint, ctl+i > Item, ctl+d > Date, ctl+t > Time & ctl+v > Paste; ctl+'+' > Task)"
 
 def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> Column:
     """Build a default view for a note.
@@ -234,12 +235,12 @@ def _build_edit_view(page, note_data: dict) -> Column:
 
         match key:
             case "ctrl+v" | "cmd+v":
-                logging.info('Shortcut: Ctrl+V detected (paste from clipboard)')
-                _mark_changed(_no)
+                logging.info('Shortcut: Ctrl+v detected (paste from clipboard)')
+                #_mark_changed(_no)
                 page.set_clipboard("")
                 notes_ctrl = note_data.get('_controls', {}).get('Notes')
                 if notes_ctrl is not None:
-                    notes_ctrl.label = "Notes: ctl+h > Header, ctl+i > Item, ctl+d > Date, ctl+t > Time & ctl+v > Paste; ctl+'+' > Task)"
+                    notes_ctrl.label = SHORTCUT_KEYS
                     notes_ctrl.focused_border_color = None
                     notes_ctrl.update()
                 return
@@ -254,13 +255,23 @@ def _build_edit_view(page, note_data: dict) -> Column:
                     notes_ctrl.focused_border_color = Colors.RED
                     notes_ctrl.update()
 
+            case "ctrl+b" | "cmd+b":
+                logging.info('Shortcut: Ctrl+b detected (insert bulletpoint)')
+                insert = "\n* "
+                page.set_clipboard(insert)
+                notes_ctrl = note_data.get('_controls', {}).get('Notes')
+                if notes_ctrl is not None:
+                    notes_ctrl.label = "Notes: * (ctl+v > Paste)"
+                    notes_ctrl.focused_border_color = Colors.RED
+                    notes_ctrl.update()
+
             case "ctrl+i" | "cmd+i":
                 logging.info('Shortcut: Ctrl+i detected (insert item)')
                 insert = "\n* "
                 page.set_clipboard(insert)
                 notes_ctrl = note_data.get('_controls', {}).get('Notes')
                 if notes_ctrl is not None:
-                    notes_ctrl.label = "Notes: * (ctl+v > Paste)"
+                    notes_ctrl.label = "Notes: - (ctl+v > Paste)"
                     notes_ctrl.focused_border_color = Colors.RED
                     notes_ctrl.update()
 
@@ -334,7 +345,7 @@ def _build_edit_view(page, note_data: dict) -> Column:
             logging.exception('Failed to clear registry.shortcut_focus on blur')
 
     notes_tf = TextField(
-        label="Notes: ctl+h > Header, ctl+i > Item, ctl+d > Date, ctl+t > Time & ctl+v > Paste; ctl+'+' > Task)",
+        label=SHORTCUT_KEYS,
         value=note_data.get("notes", ""),
         multiline=True,
         expand=True,
