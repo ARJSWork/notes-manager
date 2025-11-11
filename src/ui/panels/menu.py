@@ -28,6 +28,30 @@ def handle_submenu_hover(e):
     logging.debug(f"{e.control.content.value}.on_hover")
 
 
+def _toggle_sidebar(event, e):
+    """Toggle visibility of the sidebar container registered in the global registry.
+
+    This function is designed to be registered as an observer on the
+    `ui.menu.drawer` subject and therefore accepts (event, e) where `e` is
+    the ControlEvent from Flet.
+    """
+    try:
+        page = getattr(e, 'page', None)
+        if hasattr(registry, 'ui') and getattr(registry.ui, 'sidebar', None) and getattr(registry.ui.sidebar, 'container', None):
+            container = registry.ui.sidebar.container
+            try:
+                container.visible = not bool(getattr(container, 'visible', False))
+            except Exception:
+                container.visible = True
+            try:
+                if page:
+                    page.update()
+            except Exception:
+                pass
+    except Exception:
+        logging.exception('Error toggling sidebar')
+
+
 def build(**kwargs) -> Row:
     """ Build UI """
 
@@ -65,11 +89,11 @@ def build(**kwargs) -> Row:
         ),
 
         controls=[
-            MenuItemButton(
-                content=Icon(Icons.MENU_OUTLINED, key="drawer"),
-                style=_style,
-                #on_click=lambda e: registry.subjects["ui.menu.drawer"].notify(e),
-            ),
+                    MenuItemButton(
+                        content=Icon(Icons.MENU_OUTLINED, key="drawer"),
+                        style=_style,
+                        on_click=lambda e: registry.subjects["ui.menu.drawer"].notify(e),
+                    ),
             _smb := SubmenuButton(
                 content=Text("File"),
                 controls=[
@@ -150,6 +174,19 @@ def build(**kwargs) -> Row:
 
     # register controls
     register("ui.menubar", _menubar)
+    # register drawer control for external access if needed
+    try:
+        register("ui.menu.drawer", _menubar.controls[0])
+    except Exception:
+        pass
+
+    # Expose drawer as a subject so other modules can subscribe
+    try:
+        registry.subjects.register("ui.menu.drawer")
+        registry.subjects["ui.menu.drawer"].register(_toggle_sidebar)
+    except Exception:
+        # Subjects may not be available in some contexts; ignore gracefully
+        pass
     register("ui.menu.file.new", _menubar.controls[1].controls[0])
     register("ui.menu.file.open", _menubar.controls[1].controls[1])
     register("ui.menu.file.save", _menubar.controls[1].controls[2])

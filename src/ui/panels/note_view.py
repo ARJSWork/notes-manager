@@ -411,6 +411,19 @@ def _enter_edit(ev, page, note_data, title_fallback):
     note_data["_editing"] = True
     registry.editing = True
 
+    # When entering edit mode, collapse the sidebar (if present and visible)
+    try:
+        if hasattr(registry, 'ui') and getattr(registry.ui, 'sidebar', None) and getattr(registry.ui.sidebar, 'container', None):
+            cont = registry.ui.sidebar.container
+            if getattr(cont, 'visible', False):
+                cont.visible = False
+                try:
+                    page.update()
+                except Exception:
+                    pass
+    except Exception:
+        logging.exception('Failed to collapse sidebar on edit')
+
     # page.on_keyboard_event = _kbd_handler
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
 
@@ -521,6 +534,17 @@ def _on_save(ev, page, note_data, title_fallback):
 
 
     # Persist changes back to the attached MeetingNote object if available
+    # Auto-reopen sidebar after save (if present)
+    try:
+        if hasattr(registry, 'ui') and getattr(registry.ui, 'sidebar', None) and getattr(registry.ui.sidebar, 'container', None):
+            registry.ui.sidebar.container.visible = True
+            try:
+                page.update()
+            except Exception:
+                pass
+    except Exception:
+        logging.exception('Failed to auto-reopen sidebar after save')
+
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
 
 
@@ -531,4 +555,15 @@ def _on_cancel(_, page, note_data, title_fallback):
     note_data["_editing"] = False
     note_data.pop("_controls", None)  # Remove references to controls
     note_data.pop("_editing", None)  # Remove editing flag
+    # Auto-reopen sidebar after cancel (if present)
+    try:
+        if hasattr(registry, 'ui') and getattr(registry.ui, 'sidebar', None) and getattr(registry.ui.sidebar, 'container', None):
+            registry.ui.sidebar.container.visible = True
+            try:
+                page.update()
+            except Exception:
+                pass
+    except Exception:
+        logging.exception('Failed to auto-reopen sidebar after cancel')
+
     registry.subjects["contentView"].notify(page, [build_note_view(page, note_data, title_fallback)])
