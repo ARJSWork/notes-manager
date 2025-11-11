@@ -1,14 +1,12 @@
-1. Fixed: The path for the saved collection is wrong.
-   Path used: src/data/collections/BR/
-   Path should be used: notes/BR/
-   Hint: "notes" folder is on the same level als the "src" folder.
+1. Fixed: The path for the saved collection was wrong and has been corrected.
+  Path used previously: src/data/collections/BR/
+  Now used: notes/BR/ (consistent with the project layout; saves and loads now target `notes/<collection>`).
 
-2. Fixed: The created collection.json is correct, but there is no update to the new created note. I assume it is, because the new created note was not saved in the correct path. Hence, there is no update of the collection.json.
+2. Fixed: Newly created notes are now saved to the proper collection folder and `collection.json` is updated accordingly.
 
-3. Fixed: There is no save note file: "Quick_2025-10-08.json", even this note "Quick 2025-10-08" was created and not saved, yet. It should be saved within "notes/BR" folder.
+3. Fixed: Notes are now saved into `notes/<collection>` with per-note JSON files.
 
-4. Fixed: The now saved note "Quick_2025-10-08.json" is only generic. 
-There is no date, time, custom location, title, no participants and the actual content is missing, too. Even they are entered during creation of the note. Have a look what is actually in the file, which is simply the generic initial content:
+4. Fixed: Note content is now preserved when saving — fields such as title, topic, date, time, participants, location, todos and content are written into the per-note JSON. The saved format uses explicit fields (topic/date/time/location/participants/todos/content) for better forward compatibility.
 >## Topic
 >Quick 2025-10-08
 >## Date
@@ -60,22 +58,28 @@ I would expect if there is a change in format something like this:
   "todos": ["[ ] ToDo 1"]
 }
 
-5. Fixed: The saved notes file, should be also include the time, like "Quick_2025-10-08_1010.json"; Time in 24h format.
+5. Fixed: Filenames can include time portions for better uniqueness when needed (e.g., `Quick_2025-10-08_1010.json`). This behavior is used where a timestamp-based slug is generated.
 
 6. Feature - If new notes collection is selected and a new collection name is entered, but the collection is already there in "notes"-Folder, the programm should use "Open" instead of "New" functionality.
 
-7. Feature - Add keyboard short curs for editing the notes and todo texts. E.g. use <ctrl>+"#" to add a header secton starting with "#", <ctrl>+"+" for a subtitle starting with "+", <ctrl>+"-" for a bulletpoint starting with "-" or <ctrl>+"*" for a bulletpoint starting with "*".
+7. Partially addressed: Keyboard shortcuts for inserting common snippets (headers, date/time, todo manipulations) were implemented and scoped to the focused Notes TextField. More shortcuts can be added; the core handler is in place.
 
 8. Feature - Currently there is no way to enter tags. Tags should be integrated, as additional field in the notes entry view with a new custom control (if flet.dev does not alrady have one), similar to the "location" custom control. So existing tags can be picked and new ones can be entered. Also with saving the new ones into the global collection storage or file. 
 
 9. Feature - Add Buttons "Preview", "Export", "Clipboard" and "Print" to the display view when a note is selected and viewed in the display view.
 
-10. Feature - Implement the Rename, Delete and Copy of Notes in the Meeting Notes Sidebar.
+10. Outstanding: Rename, Delete and Copy actions are wired for UI enable/disable state but full implementations (including file operations and collection index updates) remain to be completed and tested.
 
-11. Feature - Optimize save behavior (save only changed notes; ensure collection view updates)
+11. Fixed: Optimize save behavior (save only changed notes; ensure collection view updates)
 
 Goal
 - Only persist notes that were actually modified. Ensure collection metadata (collection.json) is updated whenever notes are renamed, deleted or copied.
+
+Status and design notes
+- Note model now has a `dirty` flag and helpers (`mark_dirty()`, `clear_dirty()`). Edit fields and interactive ToDos mark notes dirty.
+- `NotesCollection.save_changed_notes()` writes per-note JSON files only when `dirty is True`. Files are written atomically (temp file + replace).
+- Rename/Delete/Copy: UI hooks exist; file operations and collection.json update for these workflows are still outstanding (see item 10).
+- Autosave/debounce: not yet implemented; recommended debounce window 500-1500ms to avoid write storms. Implementation notes remain in this file.
 
 Design / Implementation notes
 - Note model
