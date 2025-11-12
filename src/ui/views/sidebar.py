@@ -17,15 +17,18 @@ from flet import (
     IconButton,
     Icons,
     ListTile,
-    ListTile, 
+    ListView,
     Page,
     Row,
     Text,
     TextField, 
-    RadioGroup, Radio
+    RadioGroup, 
+    Radio,
+    padding,
 )
+from datetime import datetime, date as date_cls
 from db import registry, register
-from models.notes import DEFAULT_CATEGORIES, DEFAULT_MODULES, DEFAULT_TEMPLATES
+from models.notes import DEFAULT_CATEGORIES, DEFAULT_MODULES, DEFAULT_TEMPLATES, MeetingNote
 from ui.dialogs import meeting_notes, confirm as confirm_dialog
 from ui.panels.note_view import build_note_view
 from logic.persistence import slugify, rename_note_file, update_notes
@@ -74,7 +77,8 @@ def create_panel_header(title: str, page, enabled: bool = False, add_callback=No
                 delete_btn,
             ],
             alignment="spaceBetween"
-        )
+        ),
+        bgcolor=Colors.GREY_800,
     )
 
 
@@ -174,7 +178,33 @@ def populate_meeting_notes(page: Page, collection=None):
 
         notes = coll.notes if coll and getattr(coll, 'notes', None) is not None else []
 
-        for note in notes:
+        def _to_dt(val):
+            if val is None:
+                return datetime.min
+            if isinstance(val, datetime):
+                return val
+            if isinstance(val, date_cls):
+                return datetime.combine(val, datetime.min.time())
+            if isinstance(val, str):
+            # try ISO first, then some common formats
+                try:
+                    return datetime.fromisoformat(val)
+                except Exception:
+                    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y", "%Y/%m/%d", "%d.%m.%Y"):
+                        return datetime.strptime(val, fmt)
+
+                return datetime.min
+
+            try:
+            # numeric timestamps
+                return datetime.fromtimestamp(float(val))
+            except Exception:
+                return datetime.min
+
+        # sort notes by date descending (newest first)
+        sorted_notes = sorted(notes, key=lambda n: _to_dt(getattr(n, 'date', None)), reverse=True)
+
+        for note in sorted_notes:
             try:
                 nd = {
                     'title': getattr(note, 'title', None),
@@ -190,13 +220,16 @@ def populate_meeting_notes(page: Page, collection=None):
                     '_note_obj': note,
                 }
 
-                lt = ListTile(title=Text(nd.get('title') or "Untitled"), selected=False)
+                lt = ListTile(
+                    title=Text(nd.get('title') or "Untitled"), 
+                    selected=False, 
+                    )
                 lt.note_data = nd
                 lt._is_selected = False
                 lt.on_click = lambda e, item=lt: _on_click(e, item=item)
                 lv.controls.append(lt)
-            except Exception:
-                logging.exception('Error adding note to sidebar list')
+            except Exception as _e:
+                logging.exception(f'Error adding note to sidebar list: {_e}')
 
         # auto-select first note
         try:
@@ -230,6 +263,7 @@ def build(page: Page):
     # modules_visible = enabled
     # categories_visible = enabled
     logging.debug("sidebar: build start, enabled=%s", enabled)
+
     # Build interactive controls
     def _templates_on_change(e):
         val = getattr(e.control, "value", None)
@@ -238,19 +272,6 @@ def build(page: Page):
         registry.ui.sidebar.Templates.edit.disabled = False if val else True
         registry.ui.sidebar.Templates.delete.disabled = False if val else True
         page.update()
-
-    templates_group = RadioGroup(
-        content=Column([Radio(value=t, label=t) for t in DEFAULT_TEMPLATES.keys()]),
-        value=None,
-        on_change=_templates_on_change,
-    )
-    register("ui.sidebar.Templates.list", templates_group)
-
-    # Meeting notes list and handlers
-    from flet import ListView, ListTile
-
-    meeting_list = ListView(controls=[], spacing=5, height=200)
-    register("ui.sidebar.MeetingNotes.list", meeting_list)
 
     def _meeting_add(page_ref):
         # open meeting_notes dialog and append created note
@@ -279,7 +300,6 @@ def build(page: Page):
                 lt.selected = True
 
                 if hasattr(registry, 'notes_collection') and registry.notes_collection is not None:
-                    from models.notes import MeetingNote
                     note_obj = MeetingNote(
                         title=data.get('title', ''),
                         category=data.get('category', ''),
@@ -404,58 +424,66 @@ def build(page: Page):
         except Exception as ex:
             logging.exception("_meeting_edit error")
 
+    templates_group = RadioGroup(
+        content=Column([Radio(value=t, label=t) for t in DEFAULT_TEMPLATES.keys()]),
+        value=None,
+        on_change=_templates_on_change,
+    )
+    register("ui.sidebar.Templates.list", templates_group)
+
+    meeting_list = ListView(controls=[], spacing=0, padding=padding.all(0), divider_thickness=0, height=300)
+    register("ui.sidebar.MeetingNotes.list", meeting_list)
+
     # Register the add callback so header resolver can find it
     register("ui.sidebar.MeetingNotes.add_callback", _meeting_add)
 
     return ExpansionPanelList(
         expand_icon_color=Colors.AMBER,
+        expanded_header_padding=0,
         elevation=8,
         divider_color=Colors.AMBER,
         controls=[
             ExpansionPanel(
                 header=create_panel_header("Meeting Notes", page, enabled=enabled, add_callback=_meeting_add, edit_callback=_meeting_edit, delete_callback=_meeting_delete),
                 content=Container(
-                    content=Column([
-                        meeting_list
-                    ]),
-                    padding=10
+                    content=Column([meeting_list]),
+                    bgcolor=Colors.GREY_700,
                 ),
-                expanded=True
+                expanded=True,
+                bgcolor=Colors.GREY_800,
             ),
             ExpansionPanel(
                 header=create_panel_header("Templates", page, enabled=enabled),
                 content=Container(
-                    content=Column(
-                        [
-                            templates_group,
-                        ],
-                    ),
+                    content=Column([templates_group]),
+                    bgcolor=Colors.GREY_700,
                     padding=10,
                     alignment=alignment.center_left
                 ),
-                expanded=True,
+                expanded=False,
+                bgcolor=Colors.GREY_800,
             ),
             ExpansionPanel(
                 header=create_panel_header("Modules", page, enabled=enabled),
                 content=Container(
-                    content=Column(
-                        [Text(module) for module in DEFAULT_MODULES]
-                    ),
+                    content=Column([Text(module) for module in DEFAULT_MODULES]),
+                    bgcolor=Colors.GREY_700,
                     padding=10,
                     alignment=alignment.center_left
                 ),
-                expanded=False
+                expanded=False,
+                bgcolor=Colors.GREY_800,
             ),
             ExpansionPanel(
                 header=create_panel_header("Categories", page, enabled=enabled),
                 content=Container(
-                    content=Column(
-                        [Text(category) for category in DEFAULT_CATEGORIES]
-                    ),
+                    content=Column([Text(category) for category in DEFAULT_CATEGORIES]),
+                    bgcolor=Colors.GREY_700,
                     padding=10,
                     alignment=alignment.center_left
                 ),
-                expanded=False
+                expanded=False,
+                bgcolor=Colors.GREY_800,
             )
         ]
     )

@@ -40,7 +40,7 @@ def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> C
 
     return Column(
         controls=[header, Divider(), content], expand=True,
-        scroll=ScrollMode.AUTO,auto_scroll=True, 
+        scroll=ScrollMode.AUTO, auto_scroll=False, 
         )
 
 
@@ -131,6 +131,7 @@ def _build_display_view(note_data: dict) -> Column:
     notes_val = note_data.get("notes", "")
     if isinstance(notes_val, list):
         notes_val = "\n".join(notes_val)
+
     controls.append(Divider())
     controls.append(Text("Notes", size=16, weight="bold"))
     controls.append(Container(content=Text(notes_val), expand=False))
@@ -209,7 +210,7 @@ def _build_display_view(note_data: dict) -> Column:
             controls.append(Checkbox(label=text, value=checked, on_change=_on_todo_change))
 
     return Column(
-        controls=controls, expand=True, spacing=10, auto_scroll=True, scroll=ScrollMode.AUTO,
+        controls=controls, expand=True, spacing=10, auto_scroll=False, scroll=ScrollMode.AUTO,
         alignment=MainAxisAlignment.START, horizontal_alignment=VerticalAlignment.START
         )
 
