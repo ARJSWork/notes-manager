@@ -6,14 +6,17 @@
 
 import re
 import json
+import logging
 import unicodedata
-from os import path, rename, remove, makedirs, listdir, fsync, replace
+from os import path, rename, remove, makedirs, listdir, fsync, replace, getcwd
 from datetime import datetime, timezone
 from traceback import format_exc
-from typing import Tuple
+from pathlib import Path
+from typing import Tuple, Optional
 from db import registry
 from config.config import DATA_ROOT
 from models.notes import NotesCollection, MeetingNote
+from datetime import datetime
 
 def slugify(text: str) -> str:
     """Converts a string to a slug suitable for filenames.
@@ -301,3 +304,49 @@ def save_collection_view(collection: NotesCollection, data_root: str) -> Tuple[b
         return False, f"Failed to update collection view: {e}\n{tb}"
     
     # end save_collection
+
+
+def export_markdown(text: str, default_filename: str = "export.md", out_dir: Optional[str] = None) -> str:
+    """
+    Save the provided markdown text to a file and return the full path.
+
+    - text: markdown content to write
+    - default_filename: suggested filename (will be sanitized and ensured to end with .md)
+    - out_dir: target directory (defaults to current working directory)
+
+    Returns the path to the written file as a string.
+    """
+    try:
+        if out_dir is None:
+            out_dir = getcwd()
+
+        # Ensure directory exists
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+
+        # Sanitize filename (remove characters not allowed in filenames)
+        fname = slugify(path.splitext(default_filename)[0] or "export.md")
+        # Replace path separators and illegal characters
+        fname = path.basename(fname)
+        fname = re.sub(r'[<>:"/\\|?*\x00-\x1F]', "_", fname)
+
+        # Ensure .md extension
+        if not fname.lower().endswith(".md"):
+            fname = f"{fname}.md"
+
+        target = Path(out_dir) / fname
+
+        # If target exists, append timestamp to avoid overwriting
+        if target.exists():
+            ts = datetime.now().strftime("[%Y%m%d%H%M%S]")
+            stem = target.stem
+            target = target.with_name(f"{stem}_{ts}.md")
+
+        # Write file as UTF-8
+        target.write_text(text or "", encoding="utf-8")
+
+        logging.info("export_markdown: wrote markdown to %s", str(target))
+        return str(target)
+    
+    except Exception:
+        logging.exception("export_markdown: failed to write markdown")
+        raise

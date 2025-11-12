@@ -7,19 +7,24 @@
 import re
 import logging
 from datetime import datetime
+from os import path
+from pathlib import Path
 from flet import (
-    Checkbox, Column, Text, Row, Colors, Divider, Container, TextField, 
+    Checkbox, Column, Text, Row, Colors, Divider, Container, TextField, SnackBar,
     ScrollMode, ElevatedButton, IconButton, Icons, VerticalAlignment, MainAxisAlignment
     )
 from db import registry, register
-from logic.persistence import save_notes
+from logic.persistence import export_markdown, save_notes
 from logic.log import info
 from logic.ui.window import updateWindowTitle, updateWindowState, WindowState
 from ui.controls.custom_menu import CustomMenu
 from ui.controls.time_selector import TimeSelector
 from ui.controls.date_selector import DateSelector
+from ui.views import preview
+
 
 SHORTCUT_KEYS = "Notes: ctl+h > Header, ctl+b > Bulletpoint, ctl+i > Item, ctl+d > Date, ctl+t > Time & ctl+v > Paste; ctl+'+' > Task)"
+
 
 def build_note_view(page, note_data: dict | None, title_fallback: str = "") -> Column:
     """Build a default view for a note.
@@ -69,8 +74,15 @@ def _build_header(page, note_data: dict, title_fallback: str, editing: bool) -> 
         ]))
     else:
         header_content.append(
-            IconButton(Icons.EDIT, on_click=lambda ev: _enter_edit(ev, page, note_data, title_fallback),
-                       icon_color=Colors.WHITE))
+            Row(controls=[
+                IconButton(Icons.PAGEVIEW_OUTLINED, on_click=lambda ev: _preview_note(ev, page, note_data),
+                           tooltip="Preview Note", icon_color=Colors.WHITE),
+                IconButton(Icons.IMPORT_EXPORT_OUTLINED, on_click=lambda ev: _export_note(ev, page, note_data),
+                           tooltip="Export as Markdown", icon_color=Colors.WHITE),
+                IconButton(Icons.EDIT, on_click=lambda ev: _enter_edit(ev, page, note_data, title_fallback),
+                           tooltip="Edit Note", icon_color=Colors.WHITE),
+            ])
+        )
 
     return Row(controls=header_content, alignment="spaceBetween")
 
@@ -394,6 +406,70 @@ def _build_edit_view(page, note_data: dict) -> Column:
         ],
         expand=True
     )
+
+
+_modules = ["topic", "date", "time", "location", "participants", "notes", "todos"]
+def _render_text(note_data):
+    _text = ""
+    for _module in _modules:
+        val = note_data.get(_module)
+        if val is None:
+            continue
+
+        if _module == "topic":
+            _text += f"# Title: {val}\n"
+            continue
+
+        if _module in ["date", "time", "location"]:
+            _text += f"* {_module.capitalize()}: {val}\n"
+            continue
+        
+        if _module == "participants":
+            if isinstance(val, list):
+                _tmp = ", ".join(val)
+            else:
+                _tmp = str(val)
+
+            _text += f"* Participants: {_tmp}\n\n"
+            continue
+
+        if _module == "todos":
+            _text += "\n# To Do's\n"
+            if isinstance(val, list):
+                for item in val:
+                    _text += f"{item}\n"
+            else:
+                _text += str(val) + "\n"
+            _text += "\n"
+            continue
+
+        if _module == "notes":
+            _text += "# Notes\n"
+            if isinstance(val, list):
+                _tmp = "\n".join(val)
+            else:
+                _tmp = str(val)
+
+            _text += _tmp.strip() + "\n"
+    return _text
+
+
+def _preview_note(ev, page, note_data):
+    """Renders a preview of the note."""
+    info("Previewing note")
+    _text = _render_text(note_data)
+    preview.show(_text, id_="note_preview")
+
+
+def _export_note(ev, page, note_data):
+    """Exports the note to a markdown file."""
+    info("Exporting note")
+    _text = _render_text(note_data)
+    
+    export_markdown(_text, default_filename=(note_data.get("title") or "untitled") + ".md", out_dir=path.join(Path.home(), "Downloads"))
+    toast = Text("Note exported as Markdown to Downloads folder.", color=Colors.BLACK, size=16, weight="bold")
+    page.open(SnackBar(toast, bgcolor=Colors.GREEN))
+    page.update()
 
 
 def _enter_edit(ev, page, note_data, title_fallback):

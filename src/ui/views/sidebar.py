@@ -25,6 +25,7 @@ from flet import (
     RadioGroup, 
     Radio,
     padding,
+    margin,
 )
 from datetime import datetime, date as date_cls
 from db import registry, register
@@ -224,6 +225,7 @@ def populate_meeting_notes(page: Page, collection=None):
                     title=Text(nd.get('title') or "Untitled"), 
                     selected=False, 
                     )
+                lt.seltected = False
                 lt.note_data = nd
                 lt._is_selected = False
                 lt.on_click = lambda e, item=lt: _on_click(e, item=item)
@@ -240,8 +242,8 @@ def populate_meeting_notes(page: Page, collection=None):
                 nd = getattr(first, 'note_data', {}) or {}
                 col = build_note_view(page, nd, title_fallback=nd.get('title'))
                 registry.subjects['contentView'].notify(page, [col])
-        except Exception:
-            logging.exception('Error auto-selecting first note in sidebar')
+        except Exception as _e:
+            logging.exception(f'Error auto-selecting first note in sidebar: {_e}')
 
         page.update()
 
@@ -446,8 +448,10 @@ def build(page: Page):
             ExpansionPanel(
                 header=create_panel_header("Meeting Notes", page, enabled=enabled, add_callback=_meeting_add, edit_callback=_meeting_edit, delete_callback=_meeting_delete),
                 content=Container(
-                    content=Column([meeting_list]),
+                    content=meeting_list,#Column([meeting_list], spacing=0, run_spacing=0, tight=True),
                     bgcolor=Colors.GREY_700,
+                    margin=margin.symmetric(horizontal=1, vertical=1),
+                    padding=padding.symmetric(horizontal=1, vertical=1),
                 ),
                 expanded=True,
                 bgcolor=Colors.GREY_800,
