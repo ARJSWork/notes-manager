@@ -149,6 +149,7 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             collection = create_default_collection(registry.notesName)
             register("notes_collection", collection)
             register("notesFileRoot", DATA_ROOT)
+            registry.ui.menu.drawer.disabled = False
             registry.ui.menu.file.new.disabled = True
             registry.ui.menu.file.open.disabled = True
             registry.ui.menu.file.save.disabled = False
@@ -191,6 +192,7 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
             collection = load_notes_collection(registry.notesFileRoot)
             register("notes_collection", collection)
             register("notesFile", path.join(registry.notesFileRoot, "collection.json"))
+            registry.ui.menu.drawer.disabled = False
             registry.ui.menu.file.new.disabled = True
             registry.ui.menu.file.open.disabled = True
             registry.ui.menu.file.save.disabled = False
@@ -237,6 +239,7 @@ def setMenuState(page:Page, state_:MenuState=None) -> None:
         
         case MenuState.CLOSED:
             logging.info("Menu is closed")
+            registry.ui.menu.drawer.disabled = True
             registry.ui.menu.file.new.disabled = False
             registry.ui.menu.file.open.disabled = False
             registry.ui.menu.file.save.disabled = True

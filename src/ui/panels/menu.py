@@ -89,9 +89,10 @@ def build(**kwargs) -> Row:
         ),
 
         controls=[
-                    MenuItemButton(
+            _hm := MenuItemButton(
                         content=Icon(Icons.MENU_OUTLINED, key="drawer"),
                         style=_style,
+                        disabled=True,
                         on_click=lambda e: registry.subjects["ui.menu.drawer"].notify(e),
                     ),
             _smb := SubmenuButton(
@@ -180,21 +181,15 @@ def build(**kwargs) -> Row:
     except Exception:
         pass
 
-    # Expose drawer as a subject so other modules can subscribe
-    try:
-        registry.subjects.register("ui.menu.drawer")
-        registry.subjects["ui.menu.drawer"].register(_toggle_sidebar)
-    except Exception:
-        # Subjects may not be available in some contexts; ignore gracefully
-        pass
-    register("ui.menu.file.new", _menubar.controls[1].controls[0])
-    register("ui.menu.file.open", _menubar.controls[1].controls[1])
-    register("ui.menu.file.save", _menubar.controls[1].controls[2])
-    register("ui.menu.file.close", _menubar.controls[1].controls[3])
-    register("ui.menu.file.about", _menubar.controls[1].controls[4])
+    register("ui.menu.drawer", _hm)
+    register("ui.menu.file.new", _smb.controls[0])
+    register("ui.menu.file.open", _smb.controls[1])
+    register("ui.menu.file.save", _smb.controls[2])
+    register("ui.menu.file.close", _smb.controls[3])
+    register("ui.menu.file.about", _smb.controls[4])
     if not _page.web:
         _smb.controls.append(_quit)
-        register("ui.menu.file.quit", _menubar.controls[1].controls[6])
+        register("ui.menu.file.quit", _smb.controls[6])
 
     # register observables
     registry.subjects.register("ui.menu.file.new")
@@ -204,6 +199,8 @@ def build(**kwargs) -> Row:
     registry.subjects.register("ui.menu.file.about")
     registry.subjects.register("ui.menu.file.quit")
     #registry.subjects.register("ui.menu.manage.categories")
+    registry.subjects.register("ui.menu.drawer")
+    registry.subjects["ui.menu.drawer"].register(_toggle_sidebar)
     
     _row = Row(
         controls=[
