@@ -17,6 +17,7 @@ from db.handler import create_default_collection, load_notes_collection
 from db.messages import getError
 from logic.ui import ContentAction, NoteState
 from logic.ui.window import updateWindowState, updateWindowTitle, WindowState
+from ui.dialogs import about as aboutDialog
 from ui.dialogs import confirm as confirmDialog
 from ui.dialogs import file as fileDialog
 from ui.dialogs import notescollection as notesCollectionDialog
@@ -49,6 +50,9 @@ def handle_menu_item_click(event:str, e:ControlEvent) -> None:
     logging.debug(f"{event}.on_action")
 
     match event:
+        case "ui.menu.file.about":
+            aboutDialog.show(e.page)
+
         case "Quit"|"ui.menu.file.quit":
             if registry.changed:
                 confirmDialog.show(e.page, lambda: e.page.window.destroy())
