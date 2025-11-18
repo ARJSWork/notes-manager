@@ -153,14 +153,18 @@ def _serialize_note_for_write(note: MeetingNote) -> dict:
     notes = getattr(note, 'notes', None) or None
     if notes is None:
         _notes = []
-    else:
+    elif isinstance(notes, str):
         _notes = notes.splitlines()
+    else:
+        _notes = notes
 
     todos = note.todos or []
     if todos is None:
         _todos = []
+    elif isinstance(todos, str):
+        _todos = todos.splitlines()
     else:
-        _todos = _todos.splitlines()
+        _todos = todos
 
     return {
         "title": note.title,
@@ -172,7 +176,7 @@ def _serialize_note_for_write(note: MeetingNote) -> dict:
         "location": getattr(note, 'location', None) or None,
         "participants": [p for p in (getattr(note, 'participants', []) or [])],
         "notes": _notes, 
-        "todos": todos,
+        "todos": _todos,
     }
 
 
